@@ -6,7 +6,7 @@ Build a local-first, visual and reliable tool that separates semantically meanin
 
 ## Read first
 
-Before changing code, read `README.md`, `ARCHITECTURE.md`, `PESQUISA_E_DECISOES.md`, `UPDATE_POLICY.md` and `CHANGELOG.md`.
+Before changing code, read `README.md`, `ARCHITECTURE.md`, `PESQUISA_E_DECISOES.md`, `UPDATE_POLICY.md`, `THIRD_PARTY.md` and `CHANGELOG.md`.
 
 ## Non-negotiable rules
 

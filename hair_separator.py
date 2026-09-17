@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 import traceback
+from datetime import datetime
 from pathlib import Path
 
 APP_DIR = Path(__file__).resolve().parent
@@ -522,8 +523,9 @@ class HairSeparator:
                 self.status.set("Contorno curvo: buscando a fronteira de menor custo sobre a malha...")
                 self.root.update_idletasks()
                 try:
+                    previous = self.selection.copy()
                     self.selection = self.graph_cut_selection(confidence)
-                    self.history.append(self.selection.copy())
+                    self.history.append(previous)
                     self.redraw()
                 except Exception as exc:
                     self.status.set(f"Graph cut indisponível ({exc}); usando limiar de confiança.")
@@ -744,7 +746,8 @@ class HairSeparator:
                 self.redraw()
             hair = self.mesh.submesh([np.flatnonzero(self.selection)], append=True, repair=False)
             body = self.mesh.submesh([np.flatnonzero(~self.selection)], append=True, repair=False)
-            out = Path(folder)
+            out = Path(folder) / f"HairSeparator_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            out.mkdir(parents=False, exist_ok=False)
             raw_reports = {"cabelo": mesh_report(hair.copy()), "corpo": mesh_report(body.copy())}
             hair, hair_log = conservative_repair(hair)
             body, body_log = conservative_repair(body)
@@ -776,8 +779,23 @@ class HairSeparator:
                                      "O programa bloqueou os STL porque uma ou ambas as peças falharam na validação.\n\n"
                                      f"Relatório: {report_path}")
                 return
-            hair.export(out / "cabelo.stl")
-            body.export(out / "corpo.stl")
+            hair_path = out / "cabelo.stl"
+            body_path = out / "corpo.stl"
+            hair.export(hair_path)
+            body.export(body_path)
+            serialized = {
+                "cabelo": mesh_report(trimesh.load_mesh(hair_path, process=True)),
+                "corpo": mesh_report(trimesh.load_mesh(body_path, process=True)),
+            }
+            reports["validacao_apos_gravar_stl"] = serialized
+            report_path.write_text(json.dumps(reports, indent=2, ensure_ascii=False), encoding="utf-8")
+            if not (report_is_valid(serialized["cabelo"]) and report_is_valid(serialized["corpo"])):
+                hair_path.unlink(missing_ok=True)
+                body_path.unlink(missing_ok=True)
+                self.status.set("A serialização STL alterou a topologia; arquivos finais removidos.")
+                messagebox.showerror("Falha após gravar STL",
+                                     f"A segunda validação falhou. Os STL finais foram removidos.\nRelatório: {report_path}")
+                return
             self.status.set("Concluído: cabelo.stl e corpo.stl passaram na validação.")
             messagebox.showinfo("Pronto para revisão no fatiador",
                                 "As duas peças foram exportadas e passaram nas verificações topológicas.")
