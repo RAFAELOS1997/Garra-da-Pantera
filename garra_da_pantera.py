@@ -197,7 +197,7 @@ def safe_slug(value: str) -> str:
 class GarraDaPantera:
     def __init__(self, root: tk.Tk):
         self.root = root
-        root.title("Garra da Pantera 2.0 — corte semântico inteligente para impressão 3D")
+        root.title("Garra da Pantera 2.1 — corte semântico inteligente para impressão 3D")
         root.geometry("1480x900")
         self.mesh = None
         self.centroids = None
@@ -212,6 +212,8 @@ class GarraDaPantera:
         self.repair_resolution = tk.IntVar(value=340)
         self.curved_graph_cut = tk.BooleanVar(value=True)
         self.curve_sensitivity = tk.DoubleVar(value=18.0)
+        self.confidence_text = tk.StringVar(value="64%")
+        self.angle_text = tk.StringVar(value="18°")
         self.ai_positive = None
         self.ai_negative = None
         self.ai_confidence = None
@@ -226,54 +228,161 @@ class GarraDaPantera:
         self.path = None
         self._build()
 
+    def _configure_style(self):
+        self.root.configure(bg="#0b0e14")
+        style = ttk.Style(self.root)
+        style.theme_use("clam")
+        style.configure(".", background="#121722", foreground="#e8ecf3", fieldbackground="#1a2130",
+                        bordercolor="#2a3447", lightcolor="#2a3447", darkcolor="#080a0f",
+                        font=("Segoe UI", 10))
+        style.configure("TFrame", background="#121722")
+        style.configure("Card.TFrame", background="#151b27")
+        style.configure("TLabel", background="#121722", foreground="#d5dbe6")
+        style.configure("Muted.TLabel", foreground="#8994a7", font=("Segoe UI", 9))
+        style.configure("Section.TLabel", foreground="#f2f5fa", font=("Segoe UI Semibold", 10))
+        style.configure("Badge.TLabel", background="#202838", foreground="#9aa8bd", padding=(8, 4))
+        style.configure("Status.TLabel", background="#0d1119", foreground="#aeb8c8", padding=(12, 8))
+        style.configure("TButton", background="#202838", foreground="#e8ecf3", padding=(10, 7), borderwidth=0)
+        style.map("TButton", background=[("active", "#2b374c"), ("pressed", "#111722")])
+        style.configure("Accent.TButton", background="#ed168c", foreground="white",
+                        font=("Segoe UI Semibold", 10), padding=(14, 9))
+        style.map("Accent.TButton", background=[("active", "#ff329f"), ("pressed", "#c80b70")])
+        style.configure("Secondary.TButton", background="#253047", foreground="#dbe4f2")
+        style.configure("TRadiobutton", background="#151b27", foreground="#ced5e0", padding=3)
+        style.configure("TCheckbutton", background="#151b27", foreground="#ced5e0", padding=3)
+        style.map("TRadiobutton", background=[("active", "#151b27")])
+        style.map("TCheckbutton", background=[("active", "#151b27")])
+        style.configure("TEntry", fieldbackground="#0e131d", foreground="#f4f6fa", padding=8, borderwidth=1)
+        style.configure("TCombobox", fieldbackground="#0e131d", background="#202838", foreground="#f4f6fa", padding=6)
+        style.configure("Horizontal.TScale", background="#151b27", troughcolor="#2a3447")
+        style.configure("Horizontal.TProgressbar", troughcolor="#111722", background="#ed168c", thickness=3)
+        style.configure("TPanedwindow", background="#0b0e14")
+
+    def _card(self, parent, title, description=None):
+        card = ttk.Frame(parent, style="Card.TFrame", padding=14)
+        ttk.Label(card, text=title.upper(), style="Section.TLabel").pack(anchor="w")
+        if description:
+            ttk.Label(card, text=description, style="Muted.TLabel", wraplength=300).pack(anchor="w", pady=(2, 10))
+        return card
+
     def _build(self):
-        bar = ttk.Frame(self.root, padding=8)
-        bar.pack(fill=tk.X)
-        ttk.Button(bar, text="Abrir STL", command=self.open_mesh).pack(side=tk.LEFT)
-        ttk.Label(bar, text="Vista:").pack(side=tk.LEFT, padx=(16, 4))
-        view_box = ttk.Combobox(bar, textvariable=self.view, values=list(VIEWS), width=11, state="readonly")
-        view_box.pack(side=tk.LEFT)
+        self._configure_style()
+        header = tk.Frame(self.root, bg="#0d1119", height=76, padx=18, pady=12)
+        header.pack(fill=tk.X)
+        brand = tk.Frame(header, bg="#0d1119")
+        brand.pack(side=tk.LEFT)
+        tk.Label(brand, text="GARRA DA PANTERA", bg="#0d1119", fg="#ffffff",
+                 font=("Segoe UI Semibold", 18)).pack(anchor="w")
+        tk.Label(brand, text="CORTE SEMÂNTICO 3D  •  LOCAL  •  V2.1", bg="#0d1119", fg="#ed168c",
+                 font=("Segoe UI Semibold", 9)).pack(anchor="w")
+        actions = ttk.Frame(header)
+        actions.pack(side=tk.RIGHT, pady=3)
+        ttk.Button(actions, text="?  Como usar", command=self.show_help).pack(side=tk.RIGHT, padx=(6, 0))
+        ttk.Button(actions, text="Salvar projeto", command=self.save_project).pack(side=tk.RIGHT, padx=3)
+        ttk.Button(actions, text="Carregar projeto", command=self.load_project).pack(side=tk.RIGHT, padx=3)
+
+        steps = tk.Frame(self.root, bg="#111722", padx=18, pady=8)
+        steps.pack(fill=tk.X)
+        for number, label in (("1", "ABRIR MODELO"), ("2", "DEFINIR ALVO"), ("3", "REFINAR CORTE"), ("4", "VALIDAR E EXPORTAR")):
+            item = tk.Frame(steps, bg="#111722")
+            item.pack(side=tk.LEFT, padx=(0, 28))
+            tk.Label(item, text=number, bg="#ed168c", fg="white", width=2,
+                     font=("Segoe UI Semibold", 9)).pack(side=tk.LEFT)
+            tk.Label(item, text=label, bg="#111722", fg="#9eabba",
+                     font=("Segoe UI Semibold", 9), padx=7).pack(side=tk.LEFT)
+
+        body = ttk.Panedwindow(self.root, orient=tk.HORIZONTAL)
+        body.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        sidebar = ttk.Frame(body, style="Card.TFrame", width=350)
+        sidebar.pack_propagate(False)
+        body.add(sidebar, weight=0)
+        viewer = ttk.Frame(body, style="Card.TFrame")
+        body.add(viewer, weight=1)
+
+        file_card = self._card(sidebar, "Modelo", "Abra a malha e escolha a vista correspondente à imagem.")
+        file_card.pack(fill=tk.X, padx=7, pady=(7, 4))
+        file_row = ttk.Frame(file_card, style="Card.TFrame")
+        file_row.pack(fill=tk.X)
+        ttk.Button(file_row, text="＋ Abrir malha", command=self.open_mesh, style="Accent.TButton").pack(side=tk.LEFT)
+        ttk.Button(file_row, text="Diagnóstico", command=self.preflight).pack(side=tk.LEFT, padx=6)
+        view_row = ttk.Frame(file_card, style="Card.TFrame")
+        view_row.pack(fill=tk.X, pady=(10, 0))
+        ttk.Label(view_row, text="Vista", style="Muted.TLabel").pack(side=tk.LEFT)
+        view_box = ttk.Combobox(view_row, textvariable=self.view, values=list(VIEWS), width=13, state="readonly")
+        view_box.pack(side=tk.RIGHT)
         view_box.bind("<<ComboboxSelected>>", lambda _e: self.redraw())
-        ttk.Radiobutton(bar, text="Selecionar", variable=self.mode, value="Adicionar").pack(side=tk.LEFT, padx=(16, 2))
-        ttk.Radiobutton(bar, text="Apagar", variable=self.mode, value="Remover").pack(side=tk.LEFT)
-        ttk.Checkbutton(bar, text="Somente superfície visível", variable=self.visible_only).pack(side=tk.LEFT, padx=14)
-        ttk.Button(bar, text="Desfazer", command=self.undo).pack(side=tk.LEFT)
-        ttk.Button(bar, text="Limpar", command=self.clear).pack(side=tk.LEFT, padx=4)
-        ttk.Button(bar, text="Diagnóstico inicial", command=self.preflight).pack(side=tk.LEFT, padx=4)
-        ttk.Button(bar, text="Cortar, autocorrigir e validar", command=self.export).pack(side=tk.RIGHT)
 
-        ai = ttk.Frame(self.root, padding=(8, 0, 8, 8))
-        ai.pack(fill=tk.X)
-        ttk.Label(ai, text="ALVO:").pack(side=tk.LEFT)
-        ttk.Entry(ai, textvariable=self.target_prompt, width=18).pack(side=tk.LEFT, padx=4)
-        ttk.Radiobutton(ai, text="É o alvo", variable=self.mode, value="Ensinar alvo").pack(side=tk.LEFT, padx=4)
-        ttk.Radiobutton(ai, text="Proteger", variable=self.mode, value="Proteger").pack(side=tk.LEFT)
-        ttk.Button(ai, text="Reconhecer no 3D", command=self.predict_ai).pack(side=tk.LEFT, padx=(10, 4))
-        ttk.Button(ai, text="Analisar imagem", command=self.analyze_reference_image).pack(side=tk.LEFT, padx=2)
-        ttk.Checkbutton(ai, text="Espelhar foto", variable=self.flip_reference).pack(side=tk.LEFT, padx=2)
-        ttk.Checkbutton(ai, text="Contorno curvo", variable=self.curved_graph_cut).pack(side=tk.LEFT, padx=2)
-        ttk.Label(ai, text="Ângulo:").pack(side=tk.LEFT, padx=(6, 1))
-        ttk.Scale(ai, from_=4, to=60, variable=self.curve_sensitivity, length=85).pack(side=tk.LEFT)
-        ttk.Label(ai, text="Confiança:").pack(side=tk.LEFT, padx=(8, 2))
-        ttk.Scale(ai, from_=0.50, to=0.92, variable=self.ai_threshold, length=120,
-                  command=lambda _v: self.apply_ai_threshold()).pack(side=tk.LEFT)
-        ttk.Button(ai, text="Expandir", command=self.grow_selection).pack(side=tk.LEFT, padx=(12, 2))
-        ttk.Button(ai, text="Retrair", command=self.shrink_selection).pack(side=tk.LEFT)
-        ttk.Button(ai, text="Limpar fragmentos", command=self.remove_fragments).pack(side=tk.LEFT, padx=2)
-        ttk.Checkbutton(ai, text="Autocorrigir corte", variable=self.auto_repair).pack(side=tk.LEFT, padx=(8, 2))
-        ttk.Button(ai, text="Salvar projeto", command=self.save_project).pack(side=tk.RIGHT)
-        ttk.Button(ai, text="Carregar projeto", command=self.load_project).pack(side=tk.RIGHT, padx=2)
-        ttk.Button(ai, text="Como usar", command=self.show_help).pack(side=tk.RIGHT, padx=8)
+        target_card = self._card(sidebar, "Alvo inteligente", "Descreva qualquer elemento visível na imagem.")
+        target_card.pack(fill=tk.X, padx=7, pady=4)
+        ttk.Entry(target_card, textvariable=self.target_prompt, font=("Segoe UI Semibold", 12)).pack(fill=tk.X)
+        image_row = ttk.Frame(target_card, style="Card.TFrame")
+        image_row.pack(fill=tk.X, pady=(9, 3))
+        ttk.Button(image_row, text="Analisar imagem", command=self.analyze_reference_image,
+                   style="Secondary.TButton").pack(side=tk.LEFT, fill=tk.X, expand=True)
+        ttk.Button(image_row, text="Reconhecer no 3D", command=self.predict_ai,
+                   style="Accent.TButton").pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(6, 0))
+        ttk.Checkbutton(target_card, text="Espelhar imagem", variable=self.flip_reference).pack(anchor="w")
 
-        self.progress = ttk.Progressbar(self.root, mode="indeterminate")
-        self.progress.pack(fill=tk.X, padx=8)
+        teach_card = self._card(sidebar, "Pincel semântico", "Desenhe laços no visor. Verde ensina; rosa protege.")
+        teach_card.pack(fill=tk.X, padx=7, pady=4)
+        modes = ttk.Frame(teach_card, style="Card.TFrame")
+        modes.pack(fill=tk.X)
+        for text_label, value in (("＋ Selecionar", "Adicionar"), ("− Apagar", "Remover"),
+                                  ("● É o alvo", "Ensinar alvo"), ("◆ Proteger", "Proteger")):
+            ttk.Radiobutton(modes, text=text_label, variable=self.mode, value=value).pack(anchor="w")
+        ttk.Checkbutton(teach_card, text="Somente superfície visível", variable=self.visible_only).pack(anchor="w", pady=(5, 0))
 
-        self.fig = Figure(figsize=(10, 7), dpi=100, facecolor="#111318")
+        refine_card = self._card(sidebar, "Contorno e refino")
+        refine_card.pack(fill=tk.X, padx=7, pady=4)
+        ttk.Checkbutton(refine_card, text="Contorno curvo inteligente", variable=self.curved_graph_cut).pack(anchor="w")
+        angle_row = ttk.Frame(refine_card, style="Card.TFrame")
+        angle_row.pack(fill=tk.X, pady=(5, 0))
+        ttk.Label(angle_row, text="Sensibilidade angular", style="Muted.TLabel").pack(side=tk.LEFT)
+        ttk.Label(angle_row, textvariable=self.angle_text, style="Badge.TLabel").pack(side=tk.RIGHT)
+        ttk.Scale(refine_card, from_=4, to=60, variable=self.curve_sensitivity,
+                  command=lambda v: self.angle_text.set(f"{float(v):.0f}°")).pack(fill=tk.X)
+        conf_row = ttk.Frame(refine_card, style="Card.TFrame")
+        conf_row.pack(fill=tk.X, pady=(5, 0))
+        ttk.Label(conf_row, text="Confiança da seleção", style="Muted.TLabel").pack(side=tk.LEFT)
+        ttk.Label(conf_row, textvariable=self.confidence_text, style="Badge.TLabel").pack(side=tk.RIGHT)
+        ttk.Scale(refine_card, from_=0.50, to=0.92, variable=self.ai_threshold,
+                  command=self._on_confidence).pack(fill=tk.X)
+        edit_row = ttk.Frame(refine_card, style="Card.TFrame")
+        edit_row.pack(fill=tk.X, pady=(8, 0))
+        for label, command in (("Expandir", self.grow_selection), ("Retrair", self.shrink_selection),
+                               ("Fragmentos", self.remove_fragments)):
+            ttk.Button(edit_row, text=label, command=command).pack(side=tk.LEFT, padx=(0, 4))
+        history_row = ttk.Frame(refine_card, style="Card.TFrame")
+        history_row.pack(fill=tk.X, pady=(5, 0))
+        ttk.Button(history_row, text="↶ Desfazer", command=self.undo).pack(side=tk.LEFT)
+        ttk.Button(history_row, text="Limpar seleção", command=self.clear).pack(side=tk.LEFT, padx=5)
+
+        export_card = self._card(sidebar, "Saída segura")
+        export_card.pack(fill=tk.X, padx=7, pady=4)
+        ttk.Checkbutton(export_card, text="Autocorrigir malhas inválidas", variable=self.auto_repair).pack(anchor="w")
+        ttk.Button(export_card, text="CORTAR, CORRIGIR E VALIDAR", command=self.export,
+                   style="Accent.TButton").pack(fill=tk.X, pady=(8, 0))
+
+        viewer_head = ttk.Frame(viewer, style="Card.TFrame", padding=(12, 9))
+        viewer_head.pack(fill=tk.X)
+        ttk.Label(viewer_head, text="VISUALIZAÇÃO DA MALHA", style="Section.TLabel").pack(side=tk.LEFT)
+        for color, label in (("#ff7a16", "Seleção"), ("#28d17c", "Alvo"), ("#e83f8c", "Protegido")):
+            tk.Label(viewer_head, text=f" ● {label}", bg="#151b27", fg=color,
+                     font=("Segoe UI Semibold", 9)).pack(side=tk.RIGHT, padx=6)
+
+        self.progress = ttk.Progressbar(viewer, mode="indeterminate")
+        self.progress.pack(fill=tk.X)
+        self.fig = Figure(figsize=(10, 7), dpi=100, facecolor="#0d1119")
         self.ax = self.fig.add_subplot(111)
-        self.canvas = FigureCanvasTkAgg(self.fig, master=self.root)
+        self.canvas = FigureCanvasTkAgg(self.fig, master=viewer)
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        self.canvas.get_tk_widget().configure(bg="#0d1119", highlightthickness=0)
         self.lasso = LassoSelector(self.ax, onselect=self.on_lasso, button=1)
-        ttk.Label(self.root, textvariable=self.status, padding=8).pack(fill=tk.X)
+        ttk.Label(self.root, textvariable=self.status, style="Status.TLabel").pack(fill=tk.X)
+
+    def _on_confidence(self, value):
+        self.confidence_text.set(f"{float(value) * 100:.0f}%")
+        self.apply_ai_threshold()
 
     def open_mesh(self):
         p = filedialog.askopenfilename(title="Abrir modelo", filetypes=[("STL", "*.stl"), ("Malhas", "*.stl *.obj *.ply")])

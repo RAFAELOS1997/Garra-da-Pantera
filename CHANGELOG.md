@@ -2,6 +2,7 @@
 
 ## 2.0.0 - 2026-09-17
 
+- Redesigned the desktop UI as Garra da Pantera 2.1 with a dark visual system, branded header, four-step workflow, grouped control cards, persistent color legend and live confidence/angle badges.
 - Renamed the product to Garra da Pantera.
 - Replaced the hair-specific workflow with arbitrary text-guided target separation.
 - Added CLIPSeg open-vocabulary image segmentation while retaining specialized human parsing.
