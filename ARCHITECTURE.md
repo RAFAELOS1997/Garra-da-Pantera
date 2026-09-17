@@ -1,15 +1,13 @@
-# Architecture
+# Arquitetura da Garra da Pantera
 
-The pipeline combines independent evidence instead of treating one algorithm as authoritative:
+1. **Entrada e diagnóstico** — carrega a malha, preserva escala, identifica defeitos e simplifica apenas a cópia de trabalho.
+2. **Entendimento visual híbrido** — SegFormer trata classes humanas; CLIPSeg cria máscaras abertas a partir de texto.
+3. **Projeção local** — a máscara 2D é projetada na vista atual e fornece sementes, não uma decisão final.
+4. **Ensino interativo** — laços positivos e de proteção em várias vistas têm prioridade sobre os modelos.
+5. **Aprendizado geométrico** — Extra Trees usa posição normalizada, normais, distância radial e curvatura diédrica.
+6. **Contorno curvo** — graph cut combina custo semântico e adjacência. Dobras fortes e côncavas custam menos; arestas longas reduzem atalhos serrilhados. A sensibilidade angular é configurável.
+7. **Refino** — limiar, adição/remoção, morfologia por adjacência, limpeza de componentes e desfazer.
+8. **Separação e reparo** — as duas partes passam por saneamento, orientação, fechamento simples e reconstrução voxel como último recurso.
+9. **Validação** — ambas precisam ser fechadas, orientadas e sem arestas abertas, não-manifold ou faces degeneradas. A validação se repete após a gravação.
 
-1. **Input and preflight** — load, merge coincident vertices, preserve scale and report existing defects. Dense meshes receive a reversible working-copy simplification.
-2. **Image understanding** — SegFormer human parsing identifies hair, face, limbs and clothing in a reference image. The image stays local.
-3. **Camera projection** — semantic pixels are projected onto the currently selected orthographic mesh view. These labels become training examples, not final faces.
-4. **Interactive teaching** — lasso annotations add positive hair and negative anatomy/clothing examples in multiple views.
-5. **Geometric learning** — an Extra Trees ensemble learns normalized position, face normal, radial distance and local dihedral curvature.
-6. **Curved boundary optimization** — seeded graph cut combines learned probabilities with pairwise adjacency costs. Cutting across smooth faces is expensive; natural folds are cheaper.
-7. **Manual refinement** — confidence threshold, add/remove, grow/shrink, fragment cleanup and undo remain available.
-8. **Split and repair** — selected/unselected faces are separated. Conservative cleanup runs first. Volumetric reconstruction is a recorded last resort.
-9. **Validation gate** — both outputs must be watertight and free of boundary, non-manifold and degenerate geometry before final STL export.
-
-The current photo-to-mesh registration normalizes the image and mesh bounding boxes. It is useful for frontal reference images but does not yet solve perspective or articulated registration. Landmark-assisted camera fitting is the next major milestone.
+O próximo salto técnico é registro de câmera por pontos de referência e consenso entre várias imagens, seguido por curvas fechadas editáveis com pontos âncora e conectores toleranciados.

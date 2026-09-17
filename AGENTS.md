@@ -2,7 +2,7 @@
 
 ## Mission
 
-Build a local-first, visual and reliable tool that separates semantically meaningful regions such as hair from high-density character meshes and produces independently printable solids. The application must prefer refusing an unsafe export over silently producing a broken STL.
+Build a local-first, visual and reliable tool that separates any user-described visible region from dense meshes and produces independently printable solids. The application must prefer refusing an unsafe export over silently producing a broken STL.
 
 ## Read first
 
@@ -23,8 +23,8 @@ Before changing code, read `README.md`, `ARCHITECTURE.md`, `PESQUISA_E_DECISOES.
 
 ## Architecture boundaries
 
-- `hair_separator.py`: current desktop application and geometry pipeline. Keep UI handlers thin; move reusable algorithms into testable functions as the project is modularized.
-- Image parsing: creates semantic pixel masks (hair, face, arms, clothes). It supplies evidence, never the final 3D selection.
+- `garra_da_pantera.py`: current desktop application and geometry pipeline. `hair_separator.py` is only a compatibility shim.
+- Image parsing: specialized human parsing plus open-vocabulary text segmentation. It supplies evidence, never the final 3D selection.
 - Geometric learner: learns from positive and negative face labels using position, normals, radial location and curvature.
 - Curved graph cut: combines unary semantic confidence with adjacency costs; cuts should prefer high dihedral-angle boundaries.
 - Repair cascade: sanitize → orient → fill small holes → triangulate safe boundary loops → validated volumetric reconstruction only as fallback.
@@ -35,7 +35,7 @@ Before changing code, read `README.md`, `ARCHITECTURE.md`, `PESQUISA_E_DECISOES.
 ```powershell
 py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m py_compile hair_separator.py
+.\.venv\Scripts\python.exe -m py_compile garra_da_pantera.py hair_separator.py
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 

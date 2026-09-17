@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.0.0 - 2026-09-17
+
+- Renamed the product to Garra da Pantera.
+- Replaced the hair-specific workflow with arbitrary text-guided target separation.
+- Added CLIPSeg open-vocabulary image segmentation while retaining specialized human parsing.
+- Generalized labels, projects, help, validation reports and export names.
+- Improved curved graph cut with adjustable angular sensitivity, concavity and edge-length costs.
+- Studied the public Nativos3D Mesh Cut workflow: SmartCut regional mode, piece/curve modes, angle sensitivity, BVH acceleration and boundary statistics.
+- Kept a `hair_separator.py` compatibility entry point for existing integrations.
+
 ## 1.0.0 - 2026-09-17
 
 - Added local semantic image parsing for hair, face, limbs and clothing.

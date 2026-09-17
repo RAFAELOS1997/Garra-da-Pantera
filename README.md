@@ -1,70 +1,52 @@
-# HairSeparator AI
+# Garra da Pantera
 
-Local desktop tool for separating hair and other semantic regions from dense character meshes, creating two independently printable solids and refusing invalid STL exports.
+Aplicativo desktop local para separar **qualquer elemento visível** de uma malha 3D e gerar duas peças imprimíveis. O usuário descreve o alvo — cabelo, espada, capa, braço, base, acessório ou outro objeto —, confirma a máscara e o programa aprende a fronteira sobre a geometria.
 
-The project combines a reference-image human parser, interactive teaching labels, learned geometric classification, curvature-weighted graph cut, manual refinement and a multi-stage repair/validation pipeline. Images and meshes remain on the computer.
+## O que ele faz
 
-## Current capabilities
+- Abre STL, OBJ e PLY; cria uma cópia de trabalho para malhas acima de um milhão de faces.
+- Segmenta classes humanas com SegFormer e alvos arbitrários por texto com CLIPSeg.
+- Projeta a máscara 2D na vista ortográfica atual como exemplos, sem enviar a imagem ou a malha à internet.
+- Aprende com marcações positivas e áreas protegidas em várias vistas.
+- Calcula corte curvo por graph cut usando confiança, dobra, concavidade, comprimento de aresta e sensibilidade angular.
+- Permite corrigir por laço, expandir, retrair, remover fragmentos e desfazer.
+- Repara cada lado do corte e bloqueia o STL se a validação topológica falhar.
+- Revalida os arquivos depois da gravação.
 
-- STL/OBJ/PLY loading with automatic working-copy simplification above one million faces.
-- Front, back, left, right and top orthographic editing views.
-- Continuous visible-surface lasso selection with add/remove and undo.
-- Positive “hair” and negative “anatomy/clothing” teaching labels.
-- Local human parsing from a reference image using SegFormer.
-- Extra Trees geometric classifier using face position, normals, radial position and dihedral curvature.
-- Seeded graph cut that prefers curved seams along natural folds.
-- Confidence adjustment, grow, shrink and fragment cleanup.
-- Save/load project masks without embedding the source mesh.
-- Conservative topology repair followed by a recorded voxel fallback when required.
-- Strict topology gate before final STL export.
-
-## Install on Windows
-
-Open PowerShell in the project directory and run:
+## Instalação no Windows
 
 ```powershell
 .\setup.ps1
 ```
 
-Then double-click `abrir_programa.bat`.
+Depois, abra `abrir_programa.bat`. Os pesos são baixados na primeira utilização: `mattmdjaga/segformer_b2_clothes` para anatomia/roupa e `CIDAS/clipseg-rd64-refined` para texto aberto.
 
-The human-parsing weights are downloaded from `mattmdjaga/segformer_b2_clothes` the first time **Analyze image** is used. The reference image itself is processed locally and is not uploaded.
+## Fluxo recomendado
 
-## Recommended workflow
+1. Abra a malha e execute **Diagnóstico inicial**.
+2. Escreva o alvo no campo **ALVO**.
+3. Escolha uma vista compatível e clique **Analisar imagem**.
+4. Confira a prévia: verde é alvo e rosa é proteção.
+5. Ensine exceções em pelo menos duas vistas com **É o alvo** e **Proteger**.
+6. Clique **Reconhecer no 3D**, ajuste confiança e ângulo e refine a seleção laranja.
+7. Salve o projeto e clique **Cortar, autocorrigir e validar**.
 
-1. Open the mesh and run **Initial diagnostics**.
-2. Select the view matching the reference image and run **Analyze image**.
-3. Inspect the green hair labels and pink protected anatomy/clothing labels.
-4. Add examples manually in at least two views.
-5. Run **Recognize hair** with **Curved contour** enabled.
-6. Adjust confidence, correct the selection, grow/shrink and clean fragments.
-7. Save the project before cutting.
-8. Run **Separate, close and validate**.
+A exportação cria `alvo_<nome>.stl`, `restante.stl` e `validacao_separacao.json` em uma pasta nova. Reconstruções volumétricas registram resolução e deslocamento estimado.
 
-Orange faces are the proposed cut selection. Green faces are positive teaching examples. Pink faces are protected negative examples. When image inference has run, unselected faces also show a blue-to-red confidence heat map.
+## Limitações atuais
 
-## Export and automatic correction
+- A projeção 2D–3D usa alinhamento ortográfico normalizado; diferenças fortes de perspectiva e pose pedem correção manual.
+- Segmentação por texto é uma hipótese visual. Marcações manuais têm prioridade absoluta.
+- Reconstrução voxel pode suavizar detalhes menores que cerca de dois voxels.
+- Validade topológica não garante espessura, suporte ou encaixe físico adequados.
 
-The repair cascade removes duplicate and degenerate faces, merges coincident vertices, fixes orientation and normals, fills small holes and triangulates safe boundary cycles. If validation still fails and **Auto-correct cut** is enabled, a local voxel reconstruction produces a closed fallback and records its pitch and estimated surface displacement.
+## Desenvolvimento
 
-The final `cabelo.stl` and `corpo.stl` are written only if both meshes are watertight, consistently oriented and have zero open, non-manifold and degenerate elements. Diagnostic pre-reconstruction meshes and `validacao_separacao.json` explain any lossy fallback or blocked export.
-
-## Known limitations
-
-- Reference-image projection currently uses normalized orthographic alignment. Perspective and pose differences require manual correction.
-- Voxel reconstruction can soften details smaller than roughly two voxels.
-- Topological validity does not guarantee sufficient wall thickness, good support placement or a useful physical joint.
-- SegFormer human parsing is evidence for the 3D learner; it is not treated as an infallible final selection.
-
-## Contributing
-
-Humans and coding agents should read [AGENTS.md](AGENTS.md), [ARCHITECTURE.md](ARCHITECTURE.md), [UPDATE_POLICY.md](UPDATE_POLICY.md) and [PESQUISA_E_DECISOES.md](PESQUISA_E_DECISOES.md) before changing the pipeline.
-
-Run checks with:
+Agentes e colaboradores devem ler [AGENTS.md](AGENTS.md), [ARCHITECTURE.md](ARCHITECTURE.md), [UPDATE_POLICY.md](UPDATE_POLICY.md) e [PESQUISA_E_DECISOES.md](PESQUISA_E_DECISOES.md).
 
 ```powershell
-.\.venv\Scripts\python.exe -m py_compile hair_separator.py
+.\.venv\Scripts\python.exe -m py_compile garra_da_pantera.py hair_separator.py
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-User models, images, weights, reports and project masks are intentionally excluded by `.gitignore`.
+Malhas, imagens, pesos, projetos e relatórios do usuário são excluídos pelo `.gitignore`.

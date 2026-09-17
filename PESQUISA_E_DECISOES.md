@@ -50,3 +50,6 @@ Fontes adicionais:
 - https://github.com/pyvista/pymeshfix
 - https://github.com/NVlabs/SegFormer
 - https://github.com/PeikeLi/Self-Correction-Human-Parsing
+# Nativos3D Mesh Cut (revisão de 2026-09-17)
+
+A interface pública organiza o fluxo em SmartCut regional, modos **Peça** e **Curv.**, sensibilidade angular em graus e visualização de grid/wireframe. O bundle entregue ao navegador usa Three.js, `three-mesh-bvh` com folhas de até 10 triângulos, normais adjacentes e construção de contorno com espaçamento médio, perímetro, área e curvatura. A Garra da Pantera incorporou os princípios aplicáveis: sensibilidade angular explícita, custo de fronteira por dobra/concavidade/comprimento e métricas de contorno no relatório. Nenhum código do serviço foi copiado.

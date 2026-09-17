@@ -11,7 +11,7 @@ import numpy as np
 import trimesh
 
 sys.path.insert(0, str(APP))
-import hair_separator as hs
+import garra_da_pantera as hs
 
 
 class CoreTests(unittest.TestCase):
@@ -39,11 +39,12 @@ class CoreTests(unittest.TestCase):
 
     def test_seeded_graph_cut_respects_hard_labels(self):
         mesh = trimesh.creation.icosphere(subdivisions=1)
-        app = object.__new__(hs.HairSeparator)
+        app = object.__new__(hs.GarraDaPantera)
         app.mesh = mesh
         app.normals = mesh.face_normals
         app.ai_positive = np.zeros(len(mesh.faces), dtype=bool)
         app.ai_negative = np.zeros(len(mesh.faces), dtype=bool)
+        app.curve_sensitivity = type("Value", (), {"get": lambda self: 18.0})()
         top = int(np.argmax(mesh.triangles_center[:, 2]))
         bottom = int(np.argmin(mesh.triangles_center[:, 2]))
         app.ai_positive[top] = True
@@ -52,6 +53,9 @@ class CoreTests(unittest.TestCase):
         selected = app.graph_cut_selection(probability)
         self.assertTrue(selected[top])
         self.assertFalse(selected[bottom])
+
+    def test_safe_slug_normalizes_arbitrary_target(self):
+        self.assertEqual(hs.safe_slug("Braço / Espada Dourada"), "braco_espada_dourada")
 
 
 if __name__ == "__main__":

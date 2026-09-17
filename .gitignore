@@ -19,3 +19,4 @@ diagnostico_*.stl
 dist/
 build/
 *.egg-info/
+.research/
