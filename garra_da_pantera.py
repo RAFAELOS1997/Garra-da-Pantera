@@ -197,7 +197,7 @@ def safe_slug(value: str) -> str:
 class GarraDaPantera:
     def __init__(self, root: tk.Tk):
         self.root = root
-        root.title("Garra da Pantera 2.1 — corte semântico inteligente para impressão 3D")
+        root.title("Garra da Pantera 2.2 — corte semântico inteligente para impressão 3D")
         root.geometry("1480x900")
         self.mesh = None
         self.centroids = None
@@ -225,8 +225,11 @@ class GarraDaPantera:
         self.target_prompt = tk.StringVar(value="cabelo")
         self.flip_reference = tk.BooleanVar(value=False)
         self.status = tk.StringVar(value="Abra um STL para começar.")
+        self.mesh_stats = tk.StringVar(value="NENHUM MODELO")
+        self.selection_stats = tk.StringVar(value="SELEÇÃO  0%")
         self.path = None
         self._build()
+        self._bind_shortcuts()
 
     def _configure_style(self):
         self.root.configure(bg="#0b0e14")
@@ -265,6 +268,15 @@ class GarraDaPantera:
             ttk.Label(card, text=description, style="Muted.TLabel", wraplength=300).pack(anchor="w", pady=(2, 10))
         return card
 
+    def _bind_shortcuts(self):
+        self.root.bind("<Control-o>", lambda _e: self.open_mesh())
+        self.root.bind("<Control-s>", lambda _e: self.save_project())
+        self.root.bind("<Control-e>", lambda _e: self.export())
+        self.root.bind("<Control-z>", lambda _e: self.undo())
+        self.root.bind("<Escape>", lambda _e: self.clear())
+        for key, view_name in zip(("1", "2", "3", "4", "5"), VIEWS):
+            self.root.bind(key, lambda _e, name=view_name: (self.view.set(name), self.redraw()))
+
     def _build(self):
         self._configure_style()
         header = tk.Frame(self.root, bg="#0d1119", height=76, padx=18, pady=12)
@@ -273,7 +285,7 @@ class GarraDaPantera:
         brand.pack(side=tk.LEFT)
         tk.Label(brand, text="GARRA DA PANTERA", bg="#0d1119", fg="#ffffff",
                  font=("Segoe UI Semibold", 18)).pack(anchor="w")
-        tk.Label(brand, text="CORTE SEMÂNTICO 3D  •  LOCAL  •  V2.1", bg="#0d1119", fg="#ed168c",
+        tk.Label(brand, text="CORTE SEMÂNTICO 3D  •  LOCAL  •  V2.2", bg="#0d1119", fg="#ed168c",
                  font=("Segoe UI Semibold", 9)).pack(anchor="w")
         actions = ttk.Frame(header)
         actions.pack(side=tk.RIGHT, pady=3)
@@ -293,9 +305,19 @@ class GarraDaPantera:
 
         body = ttk.Panedwindow(self.root, orient=tk.HORIZONTAL)
         body.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        sidebar = ttk.Frame(body, style="Card.TFrame", width=350)
-        sidebar.pack_propagate(False)
-        body.add(sidebar, weight=0)
+        sidebar_shell = ttk.Frame(body, style="Card.TFrame", width=365)
+        sidebar_shell.pack_propagate(False)
+        body.add(sidebar_shell, weight=0)
+        side_canvas = tk.Canvas(sidebar_shell, bg="#121722", highlightthickness=0, width=345)
+        side_scroll = ttk.Scrollbar(sidebar_shell, orient=tk.VERTICAL, command=side_canvas.yview)
+        side_canvas.configure(yscrollcommand=side_scroll.set)
+        side_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        side_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        sidebar = ttk.Frame(side_canvas, style="Card.TFrame")
+        sidebar_window = side_canvas.create_window((0, 0), window=sidebar, anchor="nw")
+        sidebar.bind("<Configure>", lambda _e: side_canvas.configure(scrollregion=side_canvas.bbox("all")))
+        side_canvas.bind("<Configure>", lambda e: side_canvas.itemconfigure(sidebar_window, width=e.width))
+        side_canvas.bind("<MouseWheel>", lambda e: side_canvas.yview_scroll(int(-e.delta / 120), "units"))
         viewer = ttk.Frame(body, style="Card.TFrame")
         body.add(viewer, weight=1)
 
@@ -362,10 +384,15 @@ class GarraDaPantera:
         ttk.Checkbutton(export_card, text="Autocorrigir malhas inválidas", variable=self.auto_repair).pack(anchor="w")
         ttk.Button(export_card, text="CORTAR, CORRIGIR E VALIDAR", command=self.export,
                    style="Accent.TButton").pack(fill=tk.X, pady=(8, 0))
+        ttk.Label(sidebar, text="ATALHOS  Ctrl+O abrir  •  Ctrl+S salvar  •  Ctrl+E exportar\n"
+                                "1–5 vistas  •  Ctrl+Z desfazer  •  Esc limpar",
+                  style="Muted.TLabel", justify=tk.CENTER).pack(fill=tk.X, padx=12, pady=(6, 14))
 
         viewer_head = ttk.Frame(viewer, style="Card.TFrame", padding=(12, 9))
         viewer_head.pack(fill=tk.X)
         ttk.Label(viewer_head, text="VISUALIZAÇÃO DA MALHA", style="Section.TLabel").pack(side=tk.LEFT)
+        ttk.Label(viewer_head, textvariable=self.mesh_stats, style="Badge.TLabel").pack(side=tk.LEFT, padx=(14, 4))
+        ttk.Label(viewer_head, textvariable=self.selection_stats, style="Badge.TLabel").pack(side=tk.LEFT, padx=4)
         for color, label in (("#ff7a16", "Seleção"), ("#28d17c", "Alvo"), ("#e83f8c", "Protegido")):
             tk.Label(viewer_head, text=f" ● {label}", bg="#151b27", fg=color,
                      font=("Segoe UI Semibold", 9)).pack(side=tk.RIGHT, padx=6)
@@ -378,11 +405,24 @@ class GarraDaPantera:
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
         self.canvas.get_tk_widget().configure(bg="#0d1119", highlightthickness=0)
         self.lasso = LassoSelector(self.ax, onselect=self.on_lasso, button=1)
+        self.canvas.mpl_connect("scroll_event", self._zoom_view)
         ttk.Label(self.root, textvariable=self.status, style="Status.TLabel").pack(fill=tk.X)
 
     def _on_confidence(self, value):
         self.confidence_text.set(f"{float(value) * 100:.0f}%")
         self.apply_ai_threshold()
+
+    def _zoom_view(self, event):
+        if event.xdata is None or event.ydata is None:
+            return
+        factor = 0.82 if event.button == "up" else 1.22
+        x0, x1 = self.ax.get_xlim()
+        y0, y1 = self.ax.get_ylim()
+        self.ax.set_xlim(event.xdata + (x0 - event.xdata) * factor,
+                         event.xdata + (x1 - event.xdata) * factor)
+        self.ax.set_ylim(event.ydata + (y0 - event.ydata) * factor,
+                         event.ydata + (y1 - event.ydata) * factor)
+        self.canvas.draw_idle()
 
     def open_mesh(self):
         p = filedialog.askopenfilename(title="Abrir modelo", filetypes=[("STL", "*.stl"), ("Malhas", "*.stl *.obj *.ply")])
@@ -472,10 +512,17 @@ class GarraDaPantera:
 
     def redraw(self):
         self.ax.clear()
-        self.ax.set_facecolor("#111318")
+        self.ax.set_facecolor("#0d1119")
         self.ax.set_aspect("equal", adjustable="box")
         self.ax.axis("off")
         if self.mesh is None:
+            self.ax.text(0.5, 0.57, "⬡", transform=self.ax.transAxes, ha="center", va="center",
+                         fontsize=70, color="#263044")
+            self.ax.text(0.5, 0.43, "ABRA UMA MALHA PARA COMEÇAR", transform=self.ax.transAxes,
+                         ha="center", va="center", fontsize=14, fontweight="bold", color="#dbe2ed")
+            self.ax.text(0.5, 0.36, "STL  •  OBJ  •  PLY\nUse Ctrl+O ou o botão Abrir malha",
+                         transform=self.ax.transAxes, ha="center", va="center", fontsize=10,
+                         color="#7f8ba0", linespacing=1.8)
             self.canvas.draw_idle()
             return
         xy, depth = self.projected()
@@ -483,7 +530,13 @@ class GarraDaPantera:
         ids = np.flatnonzero(visible)
         if len(ids) > 120000:
             ids = ids[np.linspace(0, len(ids) - 1, 120000).astype(int)]
-        colors = np.full(len(ids), "#c9ced6", dtype=object)
+        sampled_depth = depth[ids]
+        depth_range = max(float(np.ptp(sampled_depth)), 1e-9)
+        depth_light = (sampled_depth - sampled_depth.min()) / depth_range
+        view_depth_axis = VIEWS[self.view.get()][2]
+        light = np.clip(0.38 + 0.36 * depth_light + 0.26 * np.abs(self.normals[ids, view_depth_axis]), 0, 1)
+        colors = np.array(["#%02x%02x%02x" % (int(75 + 100*v), int(84 + 105*v), int(100 + 115*v))
+                           for v in light], dtype=object)
         if self.ai_confidence is not None:
             confidence = self.ai_confidence[ids]
             colors = np.array(["#%02x%02x%02x" % (int(45 + 210*p), int(80 + 90*(1-p)), int(210 - 150*p))
@@ -491,12 +544,18 @@ class GarraDaPantera:
         colors[self.selection[ids]] = "#ff7a16"
         colors[self.ai_positive[ids]] = "#28d17c"
         colors[self.ai_negative[ids]] = "#e83f8c"
-        self.ax.scatter(xy[ids, 0], xy[ids, 1], s=0.6, c=colors, linewidths=0)
-        self.ax.set_title(f"{self.view.get()} — desenhe um laço com o mouse", color="white")
+        point_size = 1.2 if len(ids) < 70000 else 0.72
+        self.ax.scatter(xy[ids, 0], xy[ids, 1], s=point_size, c=colors, linewidths=0, rasterized=True)
+        self.ax.set_title(f"{self.view.get().upper()}   •   DESENHE UM LAÇO PARA SELECIONAR",
+                          color="#aeb8c8", fontsize=10, fontweight="bold", pad=14)
         self.canvas.draw_idle()
         pos = int(self.ai_positive.sum())
         neg = int(self.ai_negative.sum())
-        self.status.set(f"{self.path.name} — {len(self.mesh.faces):,} faces — seleção: {self.selection.sum():,} — exemplos: {pos:,} alvo / {neg:,} protegidos")
+        selected = int(self.selection.sum())
+        percent = selected / max(len(self.mesh.faces), 1) * 100
+        self.mesh_stats.set(f"{len(self.mesh.faces):,} FACES")
+        self.selection_stats.set(f"SELEÇÃO  {percent:.1f}%")
+        self.status.set(f"{self.path.name}  •  seleção {selected:,} faces  •  exemplos {pos:,} alvo / {neg:,} protegidos  •  roda do mouse: zoom")
 
     def on_lasso(self, vertices):
         if self.mesh is None or len(vertices) < 3:

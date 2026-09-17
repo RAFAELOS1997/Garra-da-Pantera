@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.0 - 2026-09-17
+
+- Added a scrollable control rail that remains usable on smaller screens.
+- Added an instructional empty state, keyboard shortcuts and mouse-wheel zoom.
+- Added live face-count and selection-percentage badges.
+- Added depth- and normal-aware mesh shading for clearer shape perception.
+
 ## 2.0.0 - 2026-09-17
 
 - Redesigned the desktop UI as Garra da Pantera 2.1 with a dark visual system, branded header, four-step workflow, grouped control cards, persistent color legend and live confidence/angle badges.
