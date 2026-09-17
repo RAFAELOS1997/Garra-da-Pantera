@@ -22,6 +22,7 @@ from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageTk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
+from matplotlib.collections import LineCollection
 from matplotlib.path import Path as MplPath
 from matplotlib.widgets import LassoSelector
 from scipy.sparse import coo_matrix
@@ -197,7 +198,7 @@ def safe_slug(value: str) -> str:
 class GarraDaPantera:
     def __init__(self, root: tk.Tk):
         self.root = root
-        root.title("Garra da Pantera 2.2 — corte semântico inteligente para impressão 3D")
+        root.title("Garra da Pantera 2.3 — corte semântico inteligente para impressão 3D")
         root.geometry("1480x900")
         self.mesh = None
         self.centroids = None
@@ -227,8 +228,11 @@ class GarraDaPantera:
         self.status = tk.StringVar(value="Abra um STL para começar.")
         self.mesh_stats = tk.StringVar(value="NENHUM MODELO")
         self.selection_stats = tk.StringVar(value="SELEÇÃO  0%")
+        self.tool_text = tk.StringVar(value="FERRAMENTA  SELECIONAR")
+        self.show_cut_line = tk.BooleanVar(value=True)
         self.path = None
         self._build()
+        self.mode.trace_add("write", self._update_tool_badge)
         self._bind_shortcuts()
 
     def _configure_style(self):
@@ -277,6 +281,11 @@ class GarraDaPantera:
         for key, view_name in zip(("1", "2", "3", "4", "5"), VIEWS):
             self.root.bind(key, lambda _e, name=view_name: (self.view.set(name), self.redraw()))
 
+    def _update_tool_badge(self, *_args):
+        names = {"Adicionar": "SELECIONAR", "Remover": "APAGAR",
+                 "Ensinar alvo": "ENSINAR ALVO", "Proteger": "PROTEGER"}
+        self.tool_text.set(f"FERRAMENTA  {names.get(self.mode.get(), self.mode.get()).upper()}")
+
     def _build(self):
         self._configure_style()
         header = tk.Frame(self.root, bg="#0d1119", height=76, padx=18, pady=12)
@@ -285,7 +294,7 @@ class GarraDaPantera:
         brand.pack(side=tk.LEFT)
         tk.Label(brand, text="GARRA DA PANTERA", bg="#0d1119", fg="#ffffff",
                  font=("Segoe UI Semibold", 18)).pack(anchor="w")
-        tk.Label(brand, text="CORTE SEMÂNTICO 3D  •  LOCAL  •  V2.2", bg="#0d1119", fg="#ed168c",
+        tk.Label(brand, text="CORTE SEMÂNTICO 3D  •  LOCAL  •  V2.3", bg="#0d1119", fg="#ed168c",
                  font=("Segoe UI Semibold", 9)).pack(anchor="w")
         actions = ttk.Frame(header)
         actions.pack(side=tk.RIGHT, pady=3)
@@ -393,9 +402,23 @@ class GarraDaPantera:
         ttk.Label(viewer_head, text="VISUALIZAÇÃO DA MALHA", style="Section.TLabel").pack(side=tk.LEFT)
         ttk.Label(viewer_head, textvariable=self.mesh_stats, style="Badge.TLabel").pack(side=tk.LEFT, padx=(14, 4))
         ttk.Label(viewer_head, textvariable=self.selection_stats, style="Badge.TLabel").pack(side=tk.LEFT, padx=4)
+        ttk.Label(viewer_head, textvariable=self.tool_text, style="Badge.TLabel").pack(side=tk.LEFT, padx=4)
         for color, label in (("#ff7a16", "Seleção"), ("#28d17c", "Alvo"), ("#e83f8c", "Protegido")):
             tk.Label(viewer_head, text=f" ● {label}", bg="#151b27", fg=color,
                      font=("Segoe UI Semibold", 9)).pack(side=tk.RIGHT, padx=6)
+
+        viewport_tools = ttk.Frame(viewer, style="Card.TFrame", padding=(10, 5))
+        viewport_tools.pack(fill=tk.X)
+        ttk.Label(viewport_tools, text="VISTAS", style="Muted.TLabel").pack(side=tk.LEFT, padx=(2, 7))
+        for label, view_name in (("F", "Frente"), ("C", "Costas"), ("D", "Direita"),
+                                 ("E", "Esquerda"), ("T", "Topo")):
+            ttk.Button(viewport_tools, text=label, width=3,
+                       command=lambda name=view_name: self.set_view(name)).pack(side=tk.LEFT, padx=2)
+        ttk.Separator(viewport_tools, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=9)
+        ttk.Button(viewport_tools, text="Enquadrar tudo", command=self.redraw).pack(side=tk.LEFT, padx=2)
+        ttk.Button(viewport_tools, text="Focar seleção", command=self.focus_selection).pack(side=tk.LEFT, padx=2)
+        ttk.Checkbutton(viewport_tools, text="Linha de corte", variable=self.show_cut_line,
+                        command=self.redraw).pack(side=tk.RIGHT, padx=4)
 
         self.progress = ttk.Progressbar(viewer, mode="indeterminate")
         self.progress.pack(fill=tk.X)
@@ -422,6 +445,22 @@ class GarraDaPantera:
                          event.xdata + (x1 - event.xdata) * factor)
         self.ax.set_ylim(event.ydata + (y0 - event.ydata) * factor,
                          event.ydata + (y1 - event.ydata) * factor)
+        self.canvas.draw_idle()
+
+    def set_view(self, name):
+        self.view.set(name)
+        self.redraw()
+
+    def focus_selection(self):
+        if self.mesh is None or not self.selection.any():
+            return
+        xy, _depth = self.projected()
+        points = xy[self.selection]
+        low, high = points.min(axis=0), points.max(axis=0)
+        span = np.maximum(high - low, np.linalg.norm(self.mesh.extents) * 0.02)
+        margin = span * 0.12
+        self.ax.set_xlim(low[0] - margin[0], high[0] + margin[0])
+        self.ax.set_ylim(low[1] - margin[1], high[1] + margin[1])
         self.canvas.draw_idle()
 
     def open_mesh(self):
@@ -546,6 +585,26 @@ class GarraDaPantera:
         colors[self.ai_negative[ids]] = "#e83f8c"
         point_size = 1.2 if len(ids) < 70000 else 0.72
         self.ax.scatter(xy[ids, 0], xy[ids, 1], s=point_size, c=colors, linewidths=0, rasterized=True)
+        cut_length = 0.0
+        if self.selection.any() and not self.selection.all():
+            adj = self.mesh.face_adjacency
+            crossing = self.selection[adj[:, 0]] ^ self.selection[adj[:, 1]]
+            all_edge_ids = self.mesh.face_adjacency_edges[crossing]
+            if len(all_edge_ids):
+                cut_length = float(np.linalg.norm(
+                    self.mesh.vertices[all_edge_ids[:, 0]] - self.mesh.vertices[all_edge_ids[:, 1]], axis=1
+                ).sum())
+            edge_ids = all_edge_ids
+            if len(edge_ids) > 25000:
+                edge_ids = edge_ids[np.linspace(0, len(edge_ids) - 1, 25000).astype(int)]
+            if self.show_cut_line.get() and len(edge_ids):
+                axis_a, axis_b, _axis_depth, sign = VIEWS[self.view.get()]
+                vertices = self.mesh.vertices[edge_ids][:, :, [axis_a, axis_b]].copy()
+                if sign < 0:
+                    vertices[:, :, 0] *= -1
+                seam = LineCollection(vertices, colors="#ffb11b", linewidths=1.15,
+                                      alpha=0.92, zorder=6, rasterized=True)
+                self.ax.add_collection(seam)
         self.ax.set_title(f"{self.view.get().upper()}   •   DESENHE UM LAÇO PARA SELECIONAR",
                           color="#aeb8c8", fontsize=10, fontweight="bold", pad=14)
         self.canvas.draw_idle()
@@ -554,7 +613,8 @@ class GarraDaPantera:
         selected = int(self.selection.sum())
         percent = selected / max(len(self.mesh.faces), 1) * 100
         self.mesh_stats.set(f"{len(self.mesh.faces):,} FACES")
-        self.selection_stats.set(f"SELEÇÃO  {percent:.1f}%")
+        cut_info = f"  •  CORTE {cut_length:.1f}" if cut_length else ""
+        self.selection_stats.set(f"SELEÇÃO  {percent:.1f}%{cut_info}")
         self.status.set(f"{self.path.name}  •  seleção {selected:,} faces  •  exemplos {pos:,} alvo / {neg:,} protegidos  •  roda do mouse: zoom")
 
     def on_lasso(self, vertices):

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.3.0 - 2026-09-17
+
+- Added a high-contrast projected seam showing the actual selected/unselected mesh boundary.
+- Added live cut-length feedback and a persistent active-tool indicator.
+- Added one-click orthographic view buttons, full framing and selection focus.
+- Verified boundary rendering and focus behavior on a synthetic sphere.
+
 ## 2.2.0 - 2026-09-17
 
 - Added a scrollable control rail that remains usable on smaller screens.
