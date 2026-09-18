@@ -5,13 +5,27 @@ on:
     branches: [main]
     paths:
       - 'pagina/**'
+      - 'VERSAO.txt'
+      - '.github/workflows/deploy-pagina.yml'
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+
+      - name: Baixar instalador publicado para o site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p pagina/downloads
+          VERSION="$(tr -d '[:space:]' < VERSAO.txt)"
+          gh release download "v${VERSION}" \
+            --pattern '*Installer.exe' \
+            --output pagina/downloads/GarraDaPantera-Installer.exe \
+            --clobber
+          test -s pagina/downloads/GarraDaPantera-Installer.exe
 
       - name: Deploy via FTP para Hostinger
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
