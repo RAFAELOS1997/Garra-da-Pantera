@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.2 - 2026-09-18
+
+- Pinned installation and fallback launch to Python 3.12 because PyMaxflow has no Python 3.14 wheel.
+- Made setup fail immediately when venv creation, pip, dependency installation or final imports fail.
+- Added a complete post-install import validation for the geometry and AI stack.
+
 ## 2.3.1 - 2026-09-18
 
 - Fixed the Inno Setup script so the Windows installer compiles successfully.
