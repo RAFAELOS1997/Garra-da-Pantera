@@ -1271,6 +1271,23 @@ class GarraDaPantera:
         if self.mesh is None or not self.selection.any() or self.selection.all():
             messagebox.showwarning("Seleção incompleta", "Selecione o alvo e preserve ao menos uma parte restante antes de exportar.")
             return
+        # Semantic audit gate: when an AI/reference mask exists, reject a cut
+        # that does not agree with it. Topological validity alone cannot prove
+        # that the selected object is actually the requested target.
+        if self.reference_target_mask is not None and self.reference_target_mask.any():
+            ref = self.reference_target_mask.astype(bool)
+            sel = self.selection.astype(bool)
+            inter = int(np.count_nonzero(ref & sel))
+            precision = inter / max(int(sel.sum()), 1)
+            recall = inter / max(int(ref.sum()), 1)
+            f1 = 2 * precision * recall / max(precision + recall, 1e-9)
+            if f1 < 0.45 or precision < 0.35 or recall < 0.35:
+                self.status.set("Auditoria semântica reprovada: ajuste a máscara e tente novamente.")
+                messagebox.showwarning("Auditoria semântica reprovada",
+                    f"A seleção não coincide suficientemente com a referência de {self.target_prompt.get()}.\n\n"
+                    f"Precisão: {precision:.1%}  Cobertura: {recall:.1%}  F1: {f1:.1%}\n"
+                    "O STL não será exportado até a seleção ser corrigida.")
+                return
         folder = filedialog.askdirectory(title="Pasta de saída")
         if not folder:
             return
