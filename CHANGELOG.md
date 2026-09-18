@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.0 integration - 2026-09-18
+
+- Integrated native curvature-aware 3D click segmentation, precision PyMeshFix repair and optional pin/socket connectors from the latest main branch.
+- Fixed the updater's generated batch syntax, moved network checks out of import time and required SHA-256 verification before applying an update.
+- Aligned the release manifest with the visible application version.
+
 ## 2.6.0 - 2026-09-18
 
 - **Fixed a critical bug in the already-deployed auto-updater**: `atualizador.py` had a real `SyntaxError` (the update-apply `.bat` script was built from string literals containing raw, unescaped newlines instead of `\n` or triple quotes), so the entire auto-update feature has been silently failing on every launch since it was added — the only caller wraps the import in `except Exception`, which does catch `SyntaxError`, so users never saw a crash, only a swallowed `[Atualizador] Ignorado: ...` line.
