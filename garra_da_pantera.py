@@ -26,7 +26,7 @@ from matplotlib.collections import LineCollection
 from matplotlib.path import Path as MplPath
 from matplotlib.widgets import LassoSelector
 from scipy.sparse import coo_matrix
-from scipy.sparse.csgraph import connected_components
+from scipy.sparse.csgraph import connected_components, dijkstra
 from scipy.ndimage import maximum_filter, binary_closing, binary_fill_holes
 from sklearn.ensemble import ExtraTreesClassifier
 
@@ -137,6 +137,82 @@ def cap_mesh(mesh: trimesh.Trimesh) -> tuple[trimesh.Trimesh, list[str]]:
         result.remove_unreferenced_vertices()
         trimesh.repair.fix_normals(result, multibody=True)
     return result, warnings
+
+
+def crease_aware_face_graph(mesh: trimesh.Trimesh, sensitivity_degrees: float) -> tuple[np.ndarray, np.ndarray]:
+    """Builds the face-adjacency travel cost used by both the seeded graph cut
+    and the native 3D click segmentation below: cheap across a continuous
+    surface, expensive across a fold sharper than `sensitivity_degrees` or a
+    concave seam. Returns (adjacency pairs, per-edge travel cost)."""
+    adj = mesh.face_adjacency
+    dots = np.clip(np.einsum('ij,ij->i', mesh.face_normals[adj[:, 0]], mesh.face_normals[adj[:, 1]]), -1, 1)
+    angle = np.arccos(dots)
+    sensitivity = np.deg2rad(max(float(sensitivity_degrees), 1.0))
+    fold_closeness = np.exp(-np.square(angle / sensitivity))
+    convex = np.asarray(mesh.face_adjacency_convex, dtype=bool)
+    concavity_factor = np.where(convex, 1.0, 0.55)
+    closeness = np.clip(fold_closeness * concavity_factor, 0.02, 1.0)
+    edge_vertices = mesh.face_adjacency_edges
+    edge_length = np.linalg.norm(mesh.vertices[edge_vertices[:, 0]] - mesh.vertices[edge_vertices[:, 1]], axis=1)
+    edge_length /= max(float(np.median(edge_length)), 1e-9)
+    travel_cost = edge_length * (0.05 + 3.0 / closeness)
+    return adj, travel_cost
+
+
+def geodesic_click_segmentation(mesh: trimesh.Trimesh, seed_face: int, sensitivity_degrees: float = 18.0) -> np.ndarray:
+    """Native 3D, purely geometric point-prompt segmentation: select the natural
+    part touched by a single clicked face, directly on the mesh.
+
+    This needs no reference photo, no camera/projection alignment and no
+    trained classifier, so it sidesteps the "diferenças fortes de perspectiva
+    e pose" limitation of the photo-projection workflow entirely. It runs a
+    Dijkstra search over the face-adjacency graph using the same crease-aware
+    travel cost as `graph_cut_selection` (cheap across a continuous surface,
+    expensive across a strong or concave fold), then places the region
+    boundary at the largest relative jump in the resulting geodesic-distance
+    ordering — an elbow/watershed cut that needs no manual distance
+    threshold.
+
+    This is a heuristic geometric method (curvature-aware geodesic region
+    growing), not a learned model: it complements, but never replaces, the
+    Extra Trees + graph cut pipeline in predict_ai.
+    """
+    n = len(mesh.faces)
+    seed_face = int(seed_face)
+    adj, travel_cost = crease_aware_face_graph(mesh, sensitivity_degrees)
+    graph = coo_matrix((np.r_[travel_cost, travel_cost],
+                        (np.r_[adj[:, 0], adj[:, 1]], np.r_[adj[:, 1], adj[:, 0]])),
+                       shape=(n, n)).tocsr()
+    distances = dijkstra(graph, indices=[seed_face], min_only=True)
+    finite = np.isfinite(distances)
+    mask = np.zeros(n, dtype=bool)
+    if not np.any(finite):
+        mask[seed_face] = True
+        return mask
+    face_ids = np.flatnonzero(finite)
+    order = np.argsort(distances[face_ids])
+    face_ids = face_ids[order]
+    sorted_d = distances[face_ids]
+    if len(sorted_d) < 3:
+        mask[face_ids] = True
+        return mask
+    # Quantile-binned elbow: raw consecutive-gap search is noisy on irregular
+    # triangulations (two adjacent faces can differ enough to look like a
+    # seam). Averaging distances within equal-count bins first smooths that
+    # out before picking the largest jump between neighboring bins.
+    bins = min(60, max(len(sorted_d) // 5, 3))
+    edges_idx = np.linspace(0, len(sorted_d), bins + 1).astype(int)
+    bin_means = np.array([sorted_d[edges_idx[i]:edges_idx[i + 1]].mean() for i in range(bins)])
+    gaps = np.diff(bin_means)
+    lo = max(int(bins * 0.05), 1)
+    hi = min(bins - 1, int(bins * 0.97))
+    if hi <= lo:
+        cut = len(sorted_d)
+    else:
+        best = lo + int(np.argmax(gaps[lo:hi]))
+        cut = int(edges_idx[best + 1])
+    mask[face_ids[:cut]] = True
+    return mask
 
 
 def report_is_valid(report: dict) -> bool:
@@ -400,7 +476,8 @@ class GarraDaPantera:
 
     def _update_tool_badge(self, *_args):
         names = {"Adicionar": "SELECIONAR", "Remover": "APAGAR",
-                 "Ensinar alvo": "ENSINAR ALVO", "Proteger": "PROTEGER"}
+                 "Ensinar alvo": "ENSINAR ALVO", "Proteger": "PROTEGER",
+                 "Segmentar 3D": "IA 3D NATIVA (CLIQUE)"}
         self.tool_text.set(f"FERRAMENTA  {names.get(self.mode.get(), self.mode.get()).upper()}")
 
     def _build(self):
@@ -476,9 +553,13 @@ class GarraDaPantera:
         modes = ttk.Frame(teach_card, style="Card.TFrame")
         modes.pack(fill=tk.X)
         for text_label, value in (("＋ Selecionar", "Adicionar"), ("− Apagar", "Remover"),
-                                  ("● É o alvo", "Ensinar alvo"), ("◆ Proteger", "Proteger")):
+                                  ("● É o alvo", "Ensinar alvo"), ("◆ Proteger", "Proteger"),
+                                  ("◈ IA 3D nativa (clique)", "Segmentar 3D")):
             ttk.Radiobutton(modes, text=text_label, variable=self.mode, value=value).pack(anchor="w")
         ttk.Checkbutton(teach_card, text="Somente superfície visível", variable=self.visible_only).pack(anchor="w", pady=(5, 0))
+        ttk.Label(teach_card, text="IA 3D nativa: clique perto da peça para selecionar a região natural "
+                                   "sem precisar de foto — usa geodésica ponderada por curvatura direto na malha.",
+                  style="Muted.TLabel", wraplength=300).pack(anchor="w", pady=(4, 0))
 
         refine_card = self._card(sidebar, "Contorno e refino")
         refine_card.pack(fill=tk.X, padx=7, pady=4)
@@ -765,6 +846,17 @@ class GarraDaPantera:
         elif mode == "Proteger":
             self.ai_negative |= inside
             self.ai_positive &= ~inside
+        elif mode == "Segmentar 3D":
+            candidates = np.flatnonzero(inside)
+            if not len(candidates):
+                candidates = np.flatnonzero(self.visible_mask(xy, depth)) if self.visible_only.get() \
+                    else np.arange(len(xy))
+            if len(candidates):
+                center = np.asarray(vertices, dtype=np.float64).mean(axis=0)
+                nearest = candidates[np.argmin(np.sum((xy[candidates] - center) ** 2, axis=1))]
+                self.status.set("IA 3D nativa: calculando geodésica ponderada por curvatura...")
+                self.root.update_idletasks()
+                self.selection = geodesic_click_segmentation(self.mesh, nearest, self.curve_sensitivity.get())
         self.redraw()
 
     def adjacency_step(self, mask, grow=True):
@@ -1124,7 +1216,9 @@ class GarraDaPantera:
             "6. Ajuste Confiança, corrija com Selecionar/Apagar e use Expandir/Retrair.\n"
             "7. Limpe fragmentos, salve o projeto e só então separe e valide.\n\n"
             "Para classes humanas, o programa usa análise anatômica especializada; para qualquer outro texto, usa segmentação aberta.\n"
-            "A imagem, o modelo e o treinamento permanecem neste computador."
+            "A imagem, o modelo e o treinamento permanecem neste computador.\n\n"
+            "Sem foto compatível? Use IA 3D nativa (clique): clique perto da peça na própria malha 3D e o programa "
+            "seleciona a região natural por geodésica ponderada por curvatura, sem projeção nem foto."
         )
 
     def undo(self):

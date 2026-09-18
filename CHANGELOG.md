@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.5.0 - 2026-09-18
+
+- Added native 3D point-prompt segmentation (`geodesic_click_segmentation`): click near a part directly on the rendered mesh and the program selects the natural region via a curvature-aware geodesic Dijkstra search (reusing the same crease-cost model as `graph_cut_selection`), placing the boundary at a quantile-binned elbow in the resulting distance ordering. This needs no reference photo, no camera/projection alignment, and no trained classifier — it directly addresses the documented perspective/pose limitation of the photo-projection workflow.
+- Documented this explicitly as a heuristic geometric method (not a learned model), per the AGENTS.md rule against labeling heuristics as AI: it complements, never replaces, the Extra Trees + graph cut pipeline.
+- Added a new "IA 3D nativa (clique)" teaching mode in the sidebar and help text.
+- Added deterministic tests: a cube (must stop at sharp 90° folds, no leak to the opposite face) and a sphere (must spread broadly across a smooth surface).
+
 ## 2.4.0 - 2026-09-18
 
 - Studied current tooling: Point-SAM/SAM 3D (promptable 3D segmentation), PartField/PartSAM (learned part segmentation), the Chopper paper (Luo/Baran/Rusinkiewicz/Matusik, SIGGRAPH Asia 2012) on printable partitioning with interface connectors, pychop3d, and PyMeshFix (Attene's MeshFix) for watertight repair.

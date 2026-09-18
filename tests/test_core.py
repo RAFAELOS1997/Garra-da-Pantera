@@ -74,6 +74,22 @@ class CoreTests(unittest.TestCase):
         perimeter = 2 * np.pi * 10.0
         self.assertAlmostEqual(len(points), round(perimeter / 5.0), delta=2)
 
+    def test_geodesic_click_segmentation_stops_at_sharp_fold(self):
+        box = trimesh.creation.box(extents=[10, 10, 10])
+        top_face = int(np.argmax(box.triangles_center[:, 2]))
+        mask = hs.geodesic_click_segmentation(box, top_face, sensitivity_degrees=15.0)
+        self.assertTrue(mask[top_face])
+        top_faces = box.triangles_center[:, 2] > 4.9
+        bottom_faces = box.triangles_center[:, 2] < -4.9
+        self.assertTrue(mask[top_faces].all())
+        self.assertFalse(mask[bottom_faces].any())
+
+    def test_geodesic_click_segmentation_spreads_over_smooth_surface(self):
+        sphere = trimesh.creation.icosphere(subdivisions=2)
+        seed = int(np.argmax(sphere.triangles_center[:, 2]))
+        mask = hs.geodesic_click_segmentation(sphere, seed, sensitivity_degrees=30.0)
+        self.assertGreater(mask.sum(), len(sphere.faces) * 0.2)
+
     def test_generate_connectors_produces_valid_watertight_pair(self):
         left = trimesh.creation.box(extents=[10, 10, 10])
         left.apply_translation([-5, 0, 0])

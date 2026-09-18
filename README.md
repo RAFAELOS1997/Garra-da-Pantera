@@ -7,6 +7,7 @@ Aplicativo desktop local para separar **qualquer elemento visível** de uma malh
 - Abre STL, OBJ e PLY; cria uma cópia de trabalho para malhas acima de um milhão de faces.
 - Segmenta classes humanas com SegFormer e alvos arbitrários por texto com CLIPSeg.
 - Projeta a máscara 2D na vista ortográfica atual como exemplos, sem enviar a imagem ou a malha à internet.
+- Também segmenta direto na malha 3D por clique (IA 3D nativa): geodésica ponderada por curvatura, sem foto nem projeção, útil quando a pose da imagem não bate com o modelo.
 - Aprende com marcações positivas e áreas protegidas em várias vistas.
 - Calcula corte curvo por graph cut usando confiança, dobra, concavidade, comprimento de aresta e sensibilidade angular.
 - Permite corrigir por laço, expandir, retrair, remover fragmentos e desfazer.
@@ -36,7 +37,8 @@ A exportação cria `alvo_<nome>.stl`, `restante.stl` e `validacao_separacao.jso
 
 ## Limitações atuais
 
-- A projeção 2D–3D usa alinhamento ortográfico normalizado; diferenças fortes de perspectiva e pose pedem correção manual.
+- A projeção 2D–3D usa alinhamento ortográfico normalizado; diferenças fortes de perspectiva e pose pedem correção manual ou o modo IA 3D nativa (clique), que não depende de foto.
+- A IA 3D nativa é geométrica (geodésica ponderada por curvatura), não um modelo treinado; ela corta bem em dobras fortes e costuras, mas não reconhece semântica (não sabe que algo é "uma espada"), só onde a superfície é natural.
 - Segmentação por texto é uma hipótese visual. Marcações manuais têm prioridade absoluta.
 - Reconstrução voxel pode suavizar detalhes menores que cerca de dois voxels.
 - Validade topológica não garante espessura, suporte ou encaixe físico adequados.
