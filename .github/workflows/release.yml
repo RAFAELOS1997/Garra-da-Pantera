@@ -1,0 +1,49 @@
+name: Auto Release
+
+on:
+  push:
+      branches: [main]
+          paths:
+                - 'VERSAO.txt'
+
+                permissions:
+                  contents: write
+
+                  jobs:
+                    release:
+                        runs-on: ubuntu-latest
+                            steps:
+                                  - name: Checkout
+                                          uses: actions/checkout@v4
+                                                  with:
+                                                            fetch-depth: 0
+
+                                                                  - name: Ler versao
+                                                                          id: versao
+                                                                                  run: echo "VERSAO=$(cat VERSAO.txt | tr -d '[:space:]')" >> $GITHUB_OUTPUT
+
+                                                                                        - name: Criar ZIP do programa
+                                                                                                run: |
+                                                                                                          zip -r garra-da-pantera-v${{ steps.versao.outputs.VERSAO }}.zip . \
+                                                                                                                      --exclude '*.git*' \
+                                                                                                                                  --exclude '.github/*' \
+                                                                                                                                              --exclude 'testes/*' \
+                                                                                                                                                          --exclude '__pycache__/*' \
+                                                                                                                                                                      --exclude '*.pyc' \
+                                                                                                                                                                                  --exclude '.venv/*' \
+                                                                                                                                                                                              --exclude 'pagina/*'
+                                                                                                                                                                                              
+                                                                                                                                                                                                    - name: Criar ou atualizar Release
+                                                                                                                                                                                                            uses: softprops/action-gh-release@v2
+                                                                                                                                                                                                                    with:
+                                                                                                                                                                                                                              tag_name: v${{ steps.versao.outputs.VERSAO }}
+                                                                                                                                                                                                                                        name: "Garra da Pantera v${{ steps.versao.outputs.VERSAO }}"
+                                                                                                                                                                                                                                                  body: |
+                                                                                                                                                                                                                                                              ## Como instalar
+                                                                                                                                                                                                                                                                          1. Baixe o arquivo ZIP abaixo
+                                                                                                                                                                                                                                                                                      2. Extraia em qualquer pasta
+                                                                                                                                                                                                                                                                                                  3. Execute `setup.ps1` (primeira vez) ou `abrir_programa.bat`
+                                                                                                                                                                                                                                                                                                              
+                                                                                                                                                                                                                                                                                                                          O programa verifica atualizacoes automaticamente ao iniciar.
+                                                                                                                                                                                                                                                                                                                                    files: garra-da-pantera-v${{ steps.versao.outputs.VERSAO }}.zip
+                                                                                                                                                                                                                                                                                                                                              make_latest: true
