@@ -17,11 +17,17 @@ Aplicativo desktop local para separar **qualquer elemento visível** de uma malh
 
 ## Instalação no Windows
 
+**Recomendado — não precisa de Python instalado:** baixe `GarraDaPantera-v<versão>-Installer.exe` na [página de releases](https://github.com/RAFAELOS1997/Garra-da-Pantera/releases/latest), execute e use o atalho criado. Alternativamente, baixe `garra-da-pantera-v<versão>-exe.zip`, extraia em qualquer pasta e rode `GarraDaPantera.exe` diretamente. Ambos empacotam o Python e todas as dependências (via PyInstaller); o programa verifica e aplica atualizações sozinho ao abrir.
+
+**Avançado — a partir do código-fonte (requer Python 3.12):**
+
 ```powershell
 .\setup.ps1
 ```
 
-Depois, abra `abrir_programa.bat`. Os pesos são baixados na primeira utilização: `mattmdjaga/segformer_b2_clothes` para anatomia/roupa e `CIDAS/clipseg-rd64-refined` para texto aberto.
+Depois, abra `abrir_programa.bat`.
+
+Em ambos os casos, os pesos de IA são baixados na primeira utilização: `mattmdjaga/segformer_b2_clothes` para anatomia/roupa e `CIDAS/clipseg-rd64-refined` para texto aberto.
 
 ## Fluxo recomendado
 
@@ -53,3 +59,12 @@ Agentes e colaboradores devem ler [AGENTS.md](AGENTS.md), [ARCHITECTURE.md](ARCH
 ```
 
 Malhas, imagens, pesos, projetos e relatórios do usuário são excluídos pelo `.gitignore`.
+
+### Gerar o .exe localmente
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-build.txt
+.\.venv\Scripts\python.exe -m PyInstaller garra_da_pantera.spec --noconfirm --clean
+```
+
+Gera `dist\GarraDaPantera\GarraDaPantera.exe` (modo pasta — o `.exe` fica ao lado das bibliotecas, sem autoextração a cada abertura). O workflow `.github/workflows/release.yml` faz o mesmo automaticamente a cada push que altera `VERSAO.txt`, empacota com Inno Setup e publica no GitHub Releases.

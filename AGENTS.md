@@ -20,6 +20,8 @@ Before changing code, read `README.md`, `ARCHITECTURE.md`, `PESQUISA_E_DECISOES.
 8. Keep heavy imports lazy so the basic editor starts without loading PyTorch.
 9. Any new algorithm needs a deterministic test on synthetic geometry and a regression test for its failure mode.
 10. Respect upstream licenses. Study GPL code and papers, but do not copy incompatible implementation code into this MIT project.
+11. The self-update check (`atualizador.py`) is the one intentional exception to rule 3's "no network" spirit — it only fetches a GitHub Releases manifest and a SHA-256-verified ZIP, never mesh/image/project data. Never weaken its checksum verification, never apply an update while unsaved work could be lost, and never make any other feature phone home.
+12. A new lazily-imported package (rule 8) also needs an entry in `garra_da_pantera.spec`'s `hiddenimports` (or a `collect_all(...)` call for one with data files/dynamic plugins) — PyInstaller's static analysis does see imports inside function bodies, but not imports a dependency itself performs conditionally at runtime (e.g. `trimesh.boolean`'s optional `manifold3d` backend).
 
 ## Architecture boundaries
 
