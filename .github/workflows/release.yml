@@ -51,29 +51,28 @@ jobs:
 
             | Arquivo | Descricao |
             |---------|-----------|
-            | **GarraDaPantera-v${{ steps.versao.outputs.VERSAO }}-Installer.exe** | Instalador Windows (recomendado) |
-            | garra-da-pantera-v${{ steps.versao.outputs.VERSAO }}.zip | Arquivos avulsos (avancado) |
+            | **GarraDaPantera-v${{ steps.versao.outputs.VERSAO }}-Installer.exe** | Instalador Windows (recomendado) — nao precisa de Python instalado |
+            | garra-da-pantera-v${{ steps.versao.outputs.VERSAO }}-exe.zip | Versao congelada em pasta, sem instalador (extraia e rode GarraDaPantera.exe) |
+            | garra-da-pantera-v${{ steps.versao.outputs.VERSAO }}.zip | Codigo-fonte em Python (avancado, requer Python 3.12) |
 
             ## Instalacao (Recomendado)
 
             1. Baixe o arquivo **Installer.exe** acima
             2. Execute como administrador e siga o assistente
-            3. O programa sera instalado com atalho na Area de Trabalho
-            4. Na primeira abertura, as dependencias Python sao configuradas automaticamente
+            3. O programa sera instalado com atalho na Area de Trabalho e roda direto, sem precisar de Python
 
-            ## Instalacao Manual (ZIP)
+            ## Instalacao Manual (ZIP congelado)
 
-            1. Extraia o ZIP em qualquer pasta
-            2. Execute `setup.ps1` (apenas na primeira vez)
-            3. Abra `abrir_programa.bat`
+            1. Extraia `garra-da-pantera-v${{ steps.versao.outputs.VERSAO }}-exe.zip` em qualquer pasta
+            2. Rode `GarraDaPantera.exe`
 
             O programa verifica atualizacoes automaticamente ao iniciar.
 
             ## Requisitos
 
             - Windows 10/11 64-bit
-            - Python 3.10 ou superior (para instalacao manual; o instalador verifica)
             - GPU NVIDIA recomendada (CUDA); CPU tambem funciona
+            - Python so e necessario para a opcao de codigo-fonte (avancado)
           files: |
             garra-da-pantera-v${{ steps.versao.outputs.VERSAO }}.zip
             garra-da-pantera-v${{ steps.versao.outputs.VERSAO }}.zip.sha256
@@ -93,20 +92,28 @@ jobs:
           $v = (Get-Content VERSAO.txt -Raw).Trim()
           echo "VERSAO=$v" >> $env:GITHUB_OUTPUT
 
-      - name: Preparar pasta do app
+      - name: Configurar Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias de build
+        run: python -m pip install -r requirements-build.txt
+
+      - name: Congelar o app com PyInstaller
+        run: pyinstaller garra_da_pantera.spec --noconfirm --clean
+
+      - name: Incluir VERSAO.txt na build congelada
+        shell: pwsh
+        # atualizador.py le esta copia (ao lado do .exe) para saber a versao
+        # instalada; __file__ nao aponta para um caminho real quando congelado.
+        run: Copy-Item VERSAO.txt -Destination dist\GarraDaPantera\ -Force
+
+      - name: Preparar pasta do app para o instalador
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path installer\app | Out-Null
-          $excluir = @('.git', '.github', 'testes', '__pycache__', '.venv', 'pagina', 'installer')
-          Get-ChildItem -Path . -Exclude $excluir | ForEach-Object {
-            if ($_.PSIsContainer) {
-              Copy-Item $_.FullName -Destination "installer\app\$($_.Name)" -Recurse -Force
-            } else {
-              Copy-Item $_.FullName -Destination 'installer\app\' -Force
-            }
-          }
-          Get-ChildItem -Path installer\app -Include '__pycache__' -Recurse -Directory | Remove-Item -Recurse -Force
-          Get-ChildItem -Path installer\app -Filter '*.pyc' -Recurse | Remove-Item -Force
+          Copy-Item dist\GarraDaPantera\* -Destination installer\app -Recurse -Force
 
       - name: Compilar instalador com Inno Setup
         shell: pwsh
@@ -118,10 +125,21 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Write-Host "Instalador criado com sucesso!"
 
-      - name: Upload instalador para o Release
+      - name: Zipar a build congelada (para uso sem instalador e para auto-update)
+        shell: pwsh
+        run: |
+          $version = "${{ steps.versao.outputs.VERSAO }}"
+          Compress-Archive -Path dist\GarraDaPantera\* -DestinationPath "garra-da-pantera-v$version-exe.zip"
+          $hash = (Get-FileHash "garra-da-pantera-v$version-exe.zip" -Algorithm SHA256).Hash.ToLower()
+          "$hash  garra-da-pantera-v$version-exe.zip" | Out-File -Encoding ascii "garra-da-pantera-v$version-exe.zip.sha256"
+
+      - name: Upload instalador e build congelada para o Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.versao.outputs.VERSAO }}
-          files: installer/Output/GarraDaPantera-v${{ steps.versao.outputs.VERSAO }}-Installer.exe
+          files: |
+            installer/Output/GarraDaPantera-v${{ steps.versao.outputs.VERSAO }}-Installer.exe
+            garra-da-pantera-v${{ steps.versao.outputs.VERSAO }}-exe.zip
+            garra-da-pantera-v${{ steps.versao.outputs.VERSAO }}-exe.zip.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

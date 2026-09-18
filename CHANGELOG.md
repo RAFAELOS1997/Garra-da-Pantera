@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.3.3 - 2026-09-18
+
+- Added a real standalone `.exe` build so end users never need Python installed: `garra_da_pantera.spec` freezes the app with PyInstaller in one-folder mode (chosen over one-file because this app bundles torch/transformers, which would make a one-file build self-extract several GB on every launch).
+- `release.yml`'s `build-installer` job now runs PyInstaller before Inno Setup, packages `dist/GarraDaPantera/` instead of raw Python source, and additionally publishes a `garra-da-pantera-vX.Y.Z-exe.zip` (+ `.sha256`) release asset for users who want the frozen build without the installer.
+- `installer/setup.iss` now points at `GarraDaPantera.exe` directly and no longer checks for or installs Python — the frozen build is self-contained.
+- `atualizador.py` now supports both distribution modes: it downloads the `-exe.zip` asset (and only that one) when running frozen (`sys.frozen`), or the source `.zip` otherwise, verifying whichever one's own SHA-256 as before. Also fixed a latent bug for the frozen case: the module used `Path(__file__).parent` to find the install directory, which does not point at a real filesystem path once bundled by PyInstaller — it now uses `Path(sys.executable).parent` when frozen.
+- Replaced the fixed 2-second wait before overwriting files during an update with a loop that waits for the old process's PID to actually disappear from `tasklist` — a frozen executable is locked by Windows for the full duration its process is exiting (which can take longer than 2s, e.g. while CUDA/torch is unloading), so the fixed wait could have started `xcopy` while the old `.exe` was still locked.
+- Verified locally (Linux, Python 3.12 venv) that a PyInstaller one-folder build of this exact codebase (minus torch/transformers, which need a Windows GPU box to build in reasonable time) launches its full Tk GUI successfully with tkinter, matplotlib/TkAgg, trimesh, scikit-learn, scikit-image, scipy, PyMeshFix, manifold3d, mapbox_earcut, fast_simplification and PyMaxflow all bundled — strong evidence for the full spec, though the real windows-latest CI run is the first full end-to-end validation including torch/transformers.
+- Added `requirements-build.txt` (build-only, adds `pyinstaller` on top of the full runtime `requirements.txt`).
+- Extended `tests/test_atualizador.py` with source-vs-frozen asset selection, the frozen install-directory fix, and the frozen relaunch path.
+
 ## 2.3.2 - 2026-09-18
 
 - Pinned installation and fallback launch to Python 3.12 because PyMaxflow has no Python 3.14 wheel.
