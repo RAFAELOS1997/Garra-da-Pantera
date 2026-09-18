@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.4.0 - 2026-09-18
+
+- Studied current tooling: Point-SAM/SAM 3D (promptable 3D segmentation), PartField/PartSAM (learned part segmentation), the Chopper paper (Luo/Baran/Rusinkiewicz/Matusik, SIGGRAPH Asia 2012) on printable partitioning with interface connectors, pychop3d, and PyMeshFix (Attene's MeshFix) for watertight repair.
+- Added `pymeshfix_repair` as an intermediate repair stage between the conservative repair and the voxel reconstruction fallback: it closes holes and removes self-intersections while leaving already-correct surface untouched, so fewer exports fall back to lossy volumetric reconstruction. Silently skipped if `pymeshfix` is not installed.
+- Added optional pin/socket connector generation (`generate_connectors`) along the cut interface, inspired by Chopper's assemblability-oriented connectors: cylindrical pegs are boolean-unioned onto the target piece and matching sockets are boolean-subtracted from the remainder piece, with configurable spacing and radial tolerance, so the two exported STLs can be located and re-assembled by hand instead of only touching along a bare cut line.
+- Connectors and the PyMeshFix stage never bypass topology validation: both fall back to the untouched, already-valid meshes and log why if the result would not pass `report_is_valid`.
+- Added UI controls for connector spacing, peg radius and tolerance, and a toggle to disable connector generation.
+- Added `pymeshfix` and `manifold3d` to `requirements-core.txt`.
+- Added deterministic tests for `pymeshfix_repair`, `_resample_loop` and `generate_connectors` on synthetic geometry.
+
 ## 2.3.0 - 2026-09-17
 
 - Added a high-contrast projected seam showing the actual selected/unselected mesh boundary.

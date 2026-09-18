@@ -10,7 +10,8 @@ Aplicativo desktop local para separar **qualquer elemento visível** de uma malh
 - Aprende com marcações positivas e áreas protegidas em várias vistas.
 - Calcula corte curvo por graph cut usando confiança, dobra, concavidade, comprimento de aresta e sensibilidade angular.
 - Permite corrigir por laço, expandir, retrair, remover fragmentos e desfazer.
-- Repara cada lado do corte e bloqueia o STL se a validação topológica falhar.
+- Repara cada lado do corte (reparo conservador, PyMeshFix e, em último caso, reconstrução volumétrica) e bloqueia o STL se a validação topológica falhar.
+- Gera conectores de pino/furo ao longo da linha de corte, para que as duas peças se encaixem na montagem física.
 - Revalida os arquivos depois da gravação.
 
 ## Instalação no Windows
@@ -31,7 +32,7 @@ Depois, abra `abrir_programa.bat`. Os pesos são baixados na primeira utilizaç�
 6. Clique **Reconhecer no 3D**, ajuste confiança e ângulo e refine a seleção laranja.
 7. Salve o projeto e clique **Cortar, autocorrigir e validar**.
 
-A exportação cria `alvo_<nome>.stl`, `restante.stl` e `validacao_separacao.json` em uma pasta nova. Reconstruções volumétricas registram resolução e deslocamento estimado.
+A exportação cria `alvo_<nome>.stl`, `restante.stl` e `validacao_separacao.json` em uma pasta nova. Reconstruções volumétricas registram resolução e deslocamento estimado. Por padrão, pinos e furos de encaixe são adicionados ao longo do corte (espaçamento e folga configuráveis na barra lateral); se a operação booleana não deixar a malha válida, o programa exporta sem conectores e registra o motivo no relatório.
 
 ## Limitações atuais
 
