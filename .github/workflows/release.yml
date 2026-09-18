@@ -36,6 +36,11 @@ jobs:
             --exclude 'pagina/*' \
             --exclude 'installer/*'
 
+      - name: Gerar checksum SHA-256 do ZIP
+        run: |
+          sha256sum garra-da-pantera-v${{ steps.versao.outputs.VERSAO }}.zip \
+            > garra-da-pantera-v${{ steps.versao.outputs.VERSAO }}.zip.sha256
+
       - name: Criar ou atualizar Release
         uses: softprops/action-gh-release@v2
         with:
@@ -69,7 +74,9 @@ jobs:
             - Windows 10/11 64-bit
             - Python 3.10 ou superior (para instalacao manual; o instalador verifica)
             - GPU NVIDIA recomendada (CUDA); CPU tambem funciona
-          files: garra-da-pantera-v${{ steps.versao.outputs.VERSAO }}.zip
+          files: |
+            garra-da-pantera-v${{ steps.versao.outputs.VERSAO }}.zip
+            garra-da-pantera-v${{ steps.versao.outputs.VERSAO }}.zip.sha256
           make_latest: true
 
   build-installer:
