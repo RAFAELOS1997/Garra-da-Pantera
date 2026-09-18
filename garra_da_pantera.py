@@ -33,7 +33,7 @@ from matplotlib.collections import LineCollection
 from matplotlib.path import Path as MplPath
 from matplotlib.widgets import LassoSelector
 from scipy.sparse import coo_matrix
-from scipy.sparse.csgraph import connected_components
+from scipy.sparse.csgraph import connected_components, dijkstra
 from scipy.ndimage import maximum_filter, binary_closing, binary_fill_holes
 from sklearn.ensemble import ExtraTreesClassifier
 
@@ -146,6 +146,83 @@ def cap_mesh(mesh: trimesh.Trimesh) -> tuple[trimesh.Trimesh, list[str]]:
     return result, warnings
 
 
+def crease_aware_face_graph(mesh: trimesh.Trimesh, sensitivity_degrees: float) -> tuple[np.ndarray, np.ndarray]:
+    """Builds the face-adjacency travel cost used by both the seeded graph cut
+    and the native 3D click segmentation below: cheap across a continuous
+    surface, expensive across a fold sharper than `sensitivity_degrees` or a
+    concave seam. Returns (adjacency pairs, per-edge travel cost)."""
+    adj = mesh.face_adjacency
+    dots = np.clip(np.einsum('ij,ij->i', mesh.face_normals[adj[:, 0]], mesh.face_normals[adj[:, 1]]), -1, 1)
+    angle = np.arccos(dots)
+    sensitivity = np.deg2rad(max(float(sensitivity_degrees), 1.0))
+    fold_closeness = np.exp(-np.square(angle / sensitivity))
+    convex = np.asarray(mesh.face_adjacency_convex, dtype=bool)
+    concavity_factor = np.where(convex, 1.0, 0.55)
+    closeness = np.clip(fold_closeness * concavity_factor, 0.02, 1.0)
+    edge_vertices = mesh.face_adjacency_edges
+    edge_length = np.linalg.norm(mesh.vertices[edge_vertices[:, 0]] - mesh.vertices[edge_vertices[:, 1]], axis=1)
+    edge_length /= max(float(np.median(edge_length)), 1e-9)
+    travel_cost = edge_length * (0.05 + 3.0 / closeness)
+    return adj, travel_cost
+
+
+def geodesic_click_segmentation(mesh: trimesh.Trimesh, seed_face: int, sensitivity_degrees: float = 18.0) -> np.ndarray:
+    """Native 3D, purely geometric point-prompt segmentation: select the natural
+    part touched by a single clicked face, directly on the mesh.
+
+    This needs no reference photo, no camera/projection alignment and no
+    trained classifier, so it sidesteps the "diferenças fortes de perspectiva
+    e pose" limitation of the photo-projection workflow entirely. It runs a
+    Dijkstra search over the face-adjacency graph using the same crease-aware
+    travel cost as `graph_cut_selection` (cheap across a continuous surface,
+    expensive across a strong or concave fold), then places the region
+    boundary at the largest relative jump in the resulting geodesic-distance
+    ordering — an elbow/watershed cut that needs no manual distance
+    threshold.
+
+    This is a heuristic geometric method (curvature-aware geodesic region
+    growing), not a learned model: it complements, but never replaces, the
+    Extra Trees + graph cut pipeline in predict_ai.
+    """
+    n = len(mesh.faces)
+    seed_face = int(seed_face)
+    adj, travel_cost = crease_aware_face_graph(mesh, sensitivity_degrees)
+    graph = coo_matrix((np.r_[travel_cost, travel_cost],
+                        (np.r_[adj[:, 0], adj[:, 1]], np.r_[adj[:, 1], adj[:, 0]])),
+                       shape=(n, n)).tocsr()
+    distances = dijkstra(graph, indices=[seed_face], min_only=True)
+    finite = np.isfinite(distances)
+    mask = np.zeros(n, dtype=bool)
+    if not np.any(finite):
+        mask[seed_face] = True
+        return mask
+    face_ids = np.flatnonzero(finite)
+    order = np.argsort(distances[face_ids])
+    face_ids = face_ids[order]
+    sorted_d = distances[face_ids]
+    if len(sorted_d) < 12:
+        mask[face_ids] = True
+        return mask
+    # Elbow/watershed cut: a genuine seam is a jump far larger than the
+    # typical same-surface step, so gaps are normalized against the median
+    # step rather than a fixed distance or a percentage of the face count —
+    # both broke on meshes with different triangle density (a percentage
+    # cutoff, in particular, can sit past the true seam on a finely
+    # subdivided mesh). The first few steps are skipped: with only a couple
+    # of faces reached so far, there is no reliable "same region" baseline
+    # to compare against yet.
+    gaps = np.diff(sorted_d)
+    positive_gaps = gaps[gaps > 1e-9]
+    typical_step = float(np.median(positive_gaps)) if len(positive_gaps) else 1.0
+    normalized_gaps = gaps / max(typical_step, 1e-9)
+    lo = min(10, len(normalized_gaps) - 2)
+    hi = max(len(normalized_gaps) - 1, lo + 1)
+    best = lo + int(np.argmax(normalized_gaps[lo:hi]))
+    cut = best + 1
+    mask[face_ids[:cut]] = True
+    return mask
+
+
 def report_is_valid(report: dict) -> bool:
     return (report["watertight"] and report["winding_consistent"]
             and report["boundary_edges"] == 0
@@ -175,16 +252,149 @@ def conservative_repair(mesh: trimesh.Trimesh) -> tuple[trimesh.Trimesh, list[st
     return capped, log
 
 
+def pymeshfix_repair(mesh: trimesh.Trimesh) -> tuple[trimesh.Trimesh, list[str]]:
+    """Intermediate repair stage between conservative_repair and voxel_repair.
+
+    Unlike voxel_repair, PyMeshFix (Attene's MeshFix) closes holes and removes
+    self-intersections while leaving already-correct regions of the surface
+    unresampled, so detail is preserved better than a volumetric fallback.
+    Silently no-ops if pymeshfix is not installed, since it is an optional
+    dependency and the voxel fallback still guarantees a printable result.
+    """
+    try:
+        import pymeshfix
+    except ImportError:
+        return mesh, ["PyMeshFix não está instalado; etapa de reparo de precisão ignorada."]
+    before = len(mesh.faces)
+    try:
+        fixer = pymeshfix.MeshFix(mesh.vertices.copy(), mesh.faces.copy())
+        fixer.repair(joincomp=True, remove_smallest_components=False)
+        repaired = trimesh.Trimesh(vertices=fixer.points, faces=fixer.faces, process=True)
+    except Exception as exc:
+        return mesh, [f"PyMeshFix falhou, mantendo a malha anterior: {exc}"]
+    if len(repaired.faces) == 0:
+        return mesh, ["PyMeshFix retornou uma malha vazia; etapa ignorada."]
+    trimesh.repair.fix_normals(repaired, multibody=True)
+    return repaired, [f"PyMeshFix reparou furos e autointerseções ({before:,} -> {len(repaired.faces):,} faces)."]
+
+
+def _resample_loop(points: np.ndarray, spacing: float) -> np.ndarray:
+    """Places evenly spaced points around a closed polyline, roughly `spacing` apart."""
+    if len(points) < 3:
+        return points
+    closed = np.vstack([points, points[:1]])
+    segment_lengths = np.linalg.norm(np.diff(closed, axis=0), axis=1)
+    total = float(segment_lengths.sum())
+    if total <= 1e-9:
+        return points[:1]
+    count = max(int(round(total / max(spacing, 1e-6))), 1)
+    targets = np.linspace(0.0, total, count, endpoint=False)
+    cumulative = np.concatenate([[0.0], np.cumsum(segment_lengths)])
+    out = []
+    for t in targets:
+        idx = min(int(np.searchsorted(cumulative, t, side="right") - 1), len(segment_lengths) - 1)
+        local = (t - cumulative[idx]) / max(segment_lengths[idx], 1e-9)
+        out.append(closed[idx] + local * (closed[idx + 1] - closed[idx]))
+    return np.asarray(out)
+
+
+def generate_connectors(target_mesh: trimesh.Trimesh, remainder_mesh: trimesh.Trimesh,
+                         interface_loops: list[np.ndarray], *, peg_radius=1.6, peg_length=5.0,
+                         spacing=14.0, tolerance=0.15, embed=1.8
+                         ) -> tuple[trimesh.Trimesh, trimesh.Trimesh, list[str]]:
+    """Adds alternating peg/socket cylindrical connectors along the cut interface
+    so the two exported pieces can be located and re-assembled by hand, instead
+    of just touching along a bare cut line.
+
+    Male pegs are boolean-unioned onto `target_mesh`; matching sockets are
+    boolean-subtracted from `remainder_mesh` with a `tolerance` mm radial
+    clearance so the pieces fit without forcing. This follows the connector
+    approach from Chopper (Luo et al., SIGGRAPH Asia 2012): keyed features at
+    the cut interface for assemblability, simplified to cylindrical pins.
+
+    Falls back to the untouched meshes (and explains why in the log) if the
+    interface geometry is unusable, boolean operations are unavailable, or
+    the result would not pass topology validation — connectors are a
+    convenience and must never be responsible for blocking a valid export.
+    """
+    axis = remainder_mesh.centroid - target_mesh.centroid
+    norm = float(np.linalg.norm(axis))
+    if not np.all(np.isfinite(axis)) or norm < 1e-9:
+        return target_mesh, remainder_mesh, ["Conectores: não foi possível estimar a direção do corte; etapa ignorada."]
+    axis = axis / norm
+
+    resampled = [_resample_loop(np.asarray(loop, dtype=np.float64), spacing)
+                 for loop in interface_loops if len(loop) >= 3]
+    resampled = [loop for loop in resampled if len(loop)]
+    if not resampled:
+        return target_mesh, remainder_mesh, ["Conectores: nenhuma fronteira de corte utilizável foi encontrada."]
+    points = np.vstack(resampled)
+
+    rotation = trimesh.geometry.align_vectors([0.0, 0.0, 1.0], axis)
+    pegs, sockets = [], []
+    for point in points:
+        center = point + axis * (peg_length / 2 - embed)
+        peg = trimesh.creation.cylinder(radius=peg_radius, height=peg_length, sections=16)
+        peg.apply_transform(rotation)
+        peg.apply_translation(center)
+        pegs.append(peg)
+        socket = trimesh.creation.cylinder(radius=peg_radius + tolerance,
+                                            height=peg_length + tolerance * 2, sections=16)
+        socket.apply_transform(rotation)
+        socket.apply_translation(center)
+        sockets.append(socket)
+
+    try:
+        target_with_pegs = trimesh.boolean.union([target_mesh] + pegs, engine="manifold")
+        remainder_with_sockets = trimesh.boolean.difference([remainder_mesh] + sockets, engine="manifold")
+    except Exception as exc:
+        return target_mesh, remainder_mesh, [f"Conectores: operação booleana indisponível ({exc}); export seguiu sem conectores."]
+
+    for piece in (target_with_pegs, remainder_with_sockets):
+        piece.update_faces(piece.nondegenerate_faces())
+        piece.update_faces(piece.unique_faces())
+        piece.remove_unreferenced_vertices()
+        trimesh.repair.fix_normals(piece, multibody=True)
+
+    if not (report_is_valid(mesh_report(target_with_pegs)) and report_is_valid(mesh_report(remainder_with_sockets))):
+        return target_mesh, remainder_mesh, [
+            f"Conectores: {len(points)} pino(s) gerariam topologia inválida; export seguiu sem conectores."]
+
+    log = [f"Conectores: {len(points)} pino(s)/encaixe(s) de Ø{peg_radius * 2:.1f} mm adicionados "
+           f"ao longo do corte (folga radial {tolerance:.2f} mm)."]
+    return target_with_pegs, remainder_with_sockets, log
+
+
 def voxel_repair(mesh: trimesh.Trimesh, target_resolution=340) -> tuple[trimesh.Trimesh, dict]:
-    """Last-resort local reconstruction. It is watertight but can soften detail."""
+    """Last-resort local reconstruction. It is watertight but can soften detail.
+
+    A piece that is paper-thin or otherwise has no real volume (e.g. a single
+    near-flat patch) voxelizes into an all-empty or all-solid grid, which has
+    no zero-crossing for marching cubes to extract and previously raised an
+    uncaught exception straight out of export(), skipping the JSON report the
+    rest of the repair cascade always writes (AGENTS.md: "a failed repair
+    produces a useful JSON report and no final STL"). That case is now
+    reported as a failed reconstruction instead of crashing, so the normal
+    validation/report path in export() still runs and blocks the STL.
+    """
     longest = float(max(mesh.extents))
     pitch = max(longest / float(target_resolution), 0.06)
-    voxel = mesh.voxelized(pitch)
-    matrix = binary_closing(voxel.matrix, iterations=1)
-    matrix = binary_fill_holes(matrix)
-    grid = trimesh.voxel.VoxelGrid(matrix, transform=voxel.transform)
-    rebuilt = grid.marching_cubes
-    rebuilt.apply_transform(grid.transform)
+    try:
+        voxel = mesh.voxelized(pitch)
+        matrix = binary_closing(voxel.matrix, iterations=1)
+        matrix = binary_fill_holes(matrix)
+        if not matrix.any() or matrix.all():
+            raise ValueError("a peça não tem espessura suficiente para formar um volume voxelizado")
+        grid = trimesh.voxel.VoxelGrid(matrix, transform=voxel.transform)
+        rebuilt = grid.marching_cubes
+        rebuilt.apply_transform(grid.transform)
+    except Exception as exc:
+        return mesh, {
+            "method": "voxel_reconstruction_failed",
+            "pitch_mm": float(pitch),
+            "warning": f"Reconstrução volumétrica falhou ({exc}); a peça provavelmente é fina ou degenerada "
+                       "demais para ter volume. A exportação será bloqueada pela validação normal."
+        }
     rebuilt.update_faces(rebuilt.nondegenerate_faces())
     rebuilt.update_faces(rebuilt.unique_faces())
     rebuilt.remove_unreferenced_vertices()
@@ -218,6 +428,10 @@ class GarraDaPantera:
         self.ai_threshold = tk.DoubleVar(value=0.64)
         self.auto_repair = tk.BooleanVar(value=True)
         self.repair_resolution = tk.IntVar(value=340)
+        self.generate_connectors_enabled = tk.BooleanVar(value=True)
+        self.connector_spacing = tk.DoubleVar(value=14.0)
+        self.connector_peg_radius = tk.DoubleVar(value=1.6)
+        self.connector_tolerance = tk.DoubleVar(value=0.15)
         self.curved_graph_cut = tk.BooleanVar(value=True)
         self.curve_sensitivity = tk.DoubleVar(value=18.0)
         self.confidence_text = tk.StringVar(value="64%")
@@ -290,7 +504,8 @@ class GarraDaPantera:
 
     def _update_tool_badge(self, *_args):
         names = {"Adicionar": "SELECIONAR", "Remover": "APAGAR",
-                 "Ensinar alvo": "ENSINAR ALVO", "Proteger": "PROTEGER"}
+                 "Ensinar alvo": "ENSINAR ALVO", "Proteger": "PROTEGER",
+                 "Segmentar 3D": "IA 3D NATIVA (CLIQUE)"}
         self.tool_text.set(f"FERRAMENTA  {names.get(self.mode.get(), self.mode.get()).upper()}")
 
     def _build(self):
@@ -366,9 +581,13 @@ class GarraDaPantera:
         modes = ttk.Frame(teach_card, style="Card.TFrame")
         modes.pack(fill=tk.X)
         for text_label, value in (("＋ Selecionar", "Adicionar"), ("− Apagar", "Remover"),
-                                  ("● É o alvo", "Ensinar alvo"), ("◆ Proteger", "Proteger")):
+                                  ("● É o alvo", "Ensinar alvo"), ("◆ Proteger", "Proteger"),
+                                  ("◈ IA 3D nativa (clique)", "Segmentar 3D")):
             ttk.Radiobutton(modes, text=text_label, variable=self.mode, value=value).pack(anchor="w")
         ttk.Checkbutton(teach_card, text="Somente superfície visível", variable=self.visible_only).pack(anchor="w", pady=(5, 0))
+        ttk.Label(teach_card, text="IA 3D nativa: clique perto da peça para selecionar a região natural "
+                                   "sem precisar de foto — usa geodésica ponderada por curvatura direto na malha.",
+                  style="Muted.TLabel", wraplength=300).pack(anchor="w", pady=(4, 0))
 
         refine_card = self._card(sidebar, "Contorno e refino")
         refine_card.pack(fill=tk.X, padx=7, pady=4)
@@ -398,6 +617,16 @@ class GarraDaPantera:
         export_card = self._card(sidebar, "Saída segura")
         export_card.pack(fill=tk.X, padx=7, pady=4)
         ttk.Checkbutton(export_card, text="Autocorrigir malhas inválidas", variable=self.auto_repair).pack(anchor="w")
+        ttk.Checkbutton(export_card, text="Gerar conectores de encaixe (pino/furo)",
+                         variable=self.generate_connectors_enabled).pack(anchor="w", pady=(4, 0))
+        connector_row = ttk.Frame(export_card, style="Card.TFrame")
+        connector_row.pack(fill=tk.X, pady=(4, 0))
+        ttk.Label(connector_row, text="Espaçamento (mm)", style="Muted.TLabel").pack(side=tk.LEFT)
+        ttk.Entry(connector_row, textvariable=self.connector_spacing, width=6).pack(side=tk.RIGHT)
+        tolerance_row = ttk.Frame(export_card, style="Card.TFrame")
+        tolerance_row.pack(fill=tk.X, pady=(4, 0))
+        ttk.Label(tolerance_row, text="Folga do encaixe (mm)", style="Muted.TLabel").pack(side=tk.LEFT)
+        ttk.Entry(tolerance_row, textvariable=self.connector_tolerance, width=6).pack(side=tk.RIGHT)
         ttk.Button(export_card, text="CORTAR, CORRIGIR E VALIDAR", command=self.export,
                    style="Accent.TButton").pack(fill=tk.X, pady=(8, 0))
         ttk.Label(sidebar, text="ATALHOS  Ctrl+O abrir  •  Ctrl+S salvar  •  Ctrl+E exportar\n"
@@ -645,6 +874,17 @@ class GarraDaPantera:
         elif mode == "Proteger":
             self.ai_negative |= inside
             self.ai_positive &= ~inside
+        elif mode == "Segmentar 3D":
+            candidates = np.flatnonzero(inside)
+            if not len(candidates):
+                candidates = np.flatnonzero(self.visible_mask(xy, depth)) if self.visible_only.get() \
+                    else np.arange(len(xy))
+            if len(candidates):
+                center = np.asarray(vertices, dtype=np.float64).mean(axis=0)
+                nearest = candidates[np.argmin(np.sum((xy[candidates] - center) ** 2, axis=1))]
+                self.status.set("IA 3D nativa: calculando geodésica ponderada por curvatura...")
+                self.root.update_idletasks()
+                self.selection = geodesic_click_segmentation(self.mesh, nearest, self.curve_sensitivity.get())
         self.redraw()
 
     def adjacency_step(self, mask, grow=True):
@@ -1004,7 +1244,9 @@ class GarraDaPantera:
             "6. Ajuste Confiança, corrija com Selecionar/Apagar e use Expandir/Retrair.\n"
             "7. Limpe fragmentos, salve o projeto e só então separe e valide.\n\n"
             "Para classes humanas, o programa usa análise anatômica especializada; para qualquer outro texto, usa segmentação aberta.\n"
-            "A imagem, o modelo e o treinamento permanecem neste computador."
+            "A imagem, o modelo e o treinamento permanecem neste computador.\n\n"
+            "Sem foto compatível? Use IA 3D nativa (clique): clique perto da peça na própria malha 3D e o programa "
+            "seleciona a região natural por geodésica ponderada por curvatura, sem projeção nem foto."
         )
 
     def undo(self):
@@ -1061,6 +1303,8 @@ class GarraDaPantera:
             out = Path(folder) / f"GarraDaPantera_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             out.mkdir(parents=False, exist_ok=False)
             raw_reports = {"alvo": mesh_report(target_mesh.copy()), "restante": mesh_report(remainder_mesh.copy())}
+            interface_loops = [target_mesh.vertices[np.asarray(loop)] for loop in boundary_loops(target_mesh)
+                               if len(loop) >= 3]
             target_mesh, target_log = conservative_repair(target_mesh)
             remainder_mesh, remainder_log = conservative_repair(remainder_mesh)
             repair_log.extend(["Alvo: " + x for x in target_log])
@@ -1068,6 +1312,18 @@ class GarraDaPantera:
             target_report = mesh_report(target_mesh)
             remainder_report = mesh_report(remainder_mesh)
             reconstruction = {}
+            if self.auto_repair.get() and not report_is_valid(target_report):
+                self.status.set("Autocorreção: reparo de precisão do alvo (PyMeshFix)...")
+                self.root.update_idletasks()
+                target_mesh, pymeshfix_log = pymeshfix_repair(target_mesh)
+                repair_log.extend(["Alvo: " + x for x in pymeshfix_log])
+                target_report = mesh_report(target_mesh)
+            if self.auto_repair.get() and not report_is_valid(remainder_report):
+                self.status.set("Autocorreção: reparo de precisão do restante (PyMeshFix)...")
+                self.root.update_idletasks()
+                remainder_mesh, pymeshfix_log = pymeshfix_repair(remainder_mesh)
+                repair_log.extend(["Restante: " + x for x in pymeshfix_log])
+                remainder_report = mesh_report(remainder_mesh)
             if self.auto_repair.get() and not report_is_valid(target_report):
                 self.status.set("Autocorreção: reconstruindo o volume do alvo...")
                 self.root.update_idletasks()
@@ -1080,6 +1336,19 @@ class GarraDaPantera:
                 remainder_mesh.export(out / "diagnostico_restante_antes_reconstrucao.stl")
                 remainder_mesh, reconstruction["restante"] = voxel_repair(remainder_mesh, self.repair_resolution.get())
                 remainder_report = mesh_report(remainder_mesh)
+            valid = report_is_valid(target_report) and report_is_valid(remainder_report)
+            if valid and self.generate_connectors_enabled.get() and interface_loops:
+                self.status.set("Gerando conectores de encaixe...")
+                self.root.update_idletasks()
+                target_mesh, remainder_mesh, connector_log = generate_connectors(
+                    target_mesh, remainder_mesh, interface_loops,
+                    peg_radius=max(float(self.connector_peg_radius.get()), 0.3),
+                    spacing=max(float(self.connector_spacing.get()), 2.0),
+                    tolerance=max(float(self.connector_tolerance.get()), 0.02))
+                repair_log.extend(connector_log)
+                target_report = mesh_report(target_mesh)
+                remainder_report = mesh_report(remainder_mesh)
+                valid = report_is_valid(target_report) and report_is_valid(remainder_report)
             reports = {"aplicativo": "Garra da Pantera", "alvo_solicitado": self.target_prompt.get(),
                        "entrada_separada": raw_reports, "alvo": target_report, "restante": remainder_report,
                        "metricas_contorno": self.boundary_metrics(self.selection),
@@ -1087,7 +1356,6 @@ class GarraDaPantera:
                        "repair_log": repair_log, "reconstruction": reconstruction}
             report_path = out / "validacao_separacao.json"
             report_path.write_text(json.dumps(reports, indent=2, ensure_ascii=False), encoding="utf-8")
-            valid = report_is_valid(target_report) and report_is_valid(remainder_report)
             if not valid:
                 self.status.set(f"Exportação bloqueada: veja {report_path.name}")
                 messagebox.showerror("Malha ainda inválida",

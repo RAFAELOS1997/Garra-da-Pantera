@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.5.1 - 2026-09-18
+
+- Fixed a crash: `voxel_repair` raised an uncaught `ValueError` ("Surface level must be within volume data range") on a piece with no real volume (a near-flat patch, e.g. a single face selected with nothing behind it), which skipped export()'s JSON report entirely — a regression against the AGENTS.md rule that a failed repair must still produce a useful report and no final STL, never a raw crash. Found by running the full export pipeline end to end against a real Tk build (not the tkinter stub) via a local Python 3.12 venv with Xvfb, using a deliberately pathological (zero-thickness) selection.
+- `voxel_repair` now catches this case (an all-empty or all-solid voxel grid has no zero-crossing for marching cubes to extract) and returns the untouched mesh with `method: "voxel_reconstruction_failed"`, so the normal validation path still runs and blocks the STL with a proper report instead of crashing.
+- Added a regression test with a deliberately degenerate flat mesh.
+
+## 2.5.0 - 2026-09-18
+
+- Added native 3D point-prompt segmentation (`geodesic_click_segmentation`): click near a part directly on the rendered mesh and the program selects the natural region via a curvature-aware geodesic Dijkstra search (reusing the same crease-cost model as `graph_cut_selection`), placing the boundary at a quantile-binned elbow in the resulting distance ordering. This needs no reference photo, no camera/projection alignment, and no trained classifier — it directly addresses the documented perspective/pose limitation of the photo-projection workflow.
+- Documented this explicitly as a heuristic geometric method (not a learned model), per the AGENTS.md rule against labeling heuristics as AI: it complements, never replaces, the Extra Trees + graph cut pipeline.
+- Added a new "IA 3D nativa (clique)" teaching mode in the sidebar and help text.
+- Added deterministic tests: a cube (must stop at sharp 90° folds, no leak to the opposite face) and a sphere (must spread broadly across a smooth surface).
+
+## 2.4.0 - 2026-09-18
+
+- Studied current tooling: Point-SAM/SAM 3D (promptable 3D segmentation), PartField/PartSAM (learned part segmentation), the Chopper paper (Luo/Baran/Rusinkiewicz/Matusik, SIGGRAPH Asia 2012) on printable partitioning with interface connectors, pychop3d, and PyMeshFix (Attene's MeshFix) for watertight repair.
+- Added `pymeshfix_repair` as an intermediate repair stage between the conservative repair and the voxel reconstruction fallback: it closes holes and removes self-intersections while leaving already-correct surface untouched, so fewer exports fall back to lossy volumetric reconstruction. Silently skipped if `pymeshfix` is not installed.
+- Added optional pin/socket connector generation (`generate_connectors`) along the cut interface, inspired by Chopper's assemblability-oriented connectors: cylindrical pegs are boolean-unioned onto the target piece and matching sockets are boolean-subtracted from the remainder piece, with configurable spacing and radial tolerance, so the two exported STLs can be located and re-assembled by hand instead of only touching along a bare cut line.
+- Connectors and the PyMeshFix stage never bypass topology validation: both fall back to the untouched, already-valid meshes and log why if the result would not pass `report_is_valid`.
+- Added UI controls for connector spacing, peg radius and tolerance, and a toggle to disable connector generation.
+- Added `pymeshfix` and `manifold3d` to `requirements-core.txt`.
+- Added deterministic tests for `pymeshfix_repair`, `_resample_loop` and `generate_connectors` on synthetic geometry.
+
 ## 2.3.0 - 2026-09-17
 
 - Added a high-contrast projected seam showing the actual selected/unselected mesh boundary.
