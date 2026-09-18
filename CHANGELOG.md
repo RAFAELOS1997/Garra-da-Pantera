@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.6.0 - 2026-09-18
+
+- **Fixed a critical bug in the already-deployed auto-updater**: `atualizador.py` had a real `SyntaxError` (the update-apply `.bat` script was built from string literals containing raw, unescaped newlines instead of `\n` or triple quotes), so the entire auto-update feature has been silently failing on every launch since it was added — the only caller wraps the import in `except Exception`, which does catch `SyntaxError`, so users never saw a crash, only a swallowed `[Atualizador] Ignorado: ...` line.
+- Hardened the auto-updater with SHA-256 verification: `release.yml` now generates and publishes a `.zip.sha256` checksum alongside each release ZIP, and `atualizador.py` downloads and verifies it before ever applying an update — a missing checksum asset, a mismatch, or any network/API failure cancels the update and leaves the program untouched, never applying an unverified download.
+- Moved the update check out of module import time and into `main()` (i.e. only when the app is actually launched, not when `garra_da_pantera.py` is imported): importing it — as every unit test does — previously made a real network call to the GitHub API on every test run, which is both slow/flaky and against this project's "no downloads during tests" rule (AGENTS.md).
+- Added deterministic tests in `tests/test_atualizador.py` against a local fake HTTP server standing in for the GitHub Releases API: version parsing/ordering, checksum accept/reject, missing-checksum-asset handling, unreachable-API never raising, and a regression test asserting the module's source is syntactically valid (guards directly against the bug above recurring).
+- Decided against replacing this GitHub-Releases-based updater with a separate custom-domain manifest + frozen-`.exe`-swap design that was explored in this same session, since the former was already live in production with real release/installer infrastructure built around it; duplicating it would have left two competing auto-update systems in the same file.
+
 ## 2.5.1 - 2026-09-18
 
 - Fixed a crash: `voxel_repair` raised an uncaught `ValueError` ("Surface level must be within volume data range") on a piece with no real volume (a near-flat patch, e.g. a single face selected with nothing behind it), which skipped export()'s JSON report entirely — a regression against the AGENTS.md rule that a failed repair must still produce a useful report and no final STL, never a raw crash. Found by running the full export pipeline end to end against a real Tk build (not the tkinter stub) via a local Python 3.12 venv with Xvfb, using a deliberately pathological (zero-thickness) selection.

@@ -1,12 +1,5 @@
 from __future__ import annotations
 
-# Verificacao automatica de atualizacoes
-try:
-    from atualizador import verificar_atualizacao
-    verificar_atualizacao(silencioso=True)
-except Exception as _upd_err:
-    print(f"[Atualizador] Ignorado: {_upd_err}")
-
 import json
 import re
 import sys
@@ -1387,6 +1380,15 @@ class GarraDaPantera:
 
 
 def main():
+    # Checked here (not at import time) so importing this module — as every
+    # unit test does — never makes a network call. Any failure (offline, no
+    # release published yet, GitHub unreachable) is swallowed: an update
+    # check must never stop the program from opening.
+    try:
+        from atualizador import verificar_atualizacao
+        verificar_atualizacao(silencioso=True)
+    except Exception as exc:
+        print(f"[Atualizador] Ignorado: {exc}")
     root = tk.Tk()
     ttk.Style().theme_use("clam")
     GarraDaPantera(root)

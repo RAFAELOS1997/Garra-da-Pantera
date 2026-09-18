@@ -4,7 +4,9 @@ atualizador.py -- Verifica e aplica atualizacoes automaticas do Garra da Pantera
 Uso: chamar verificar_atualizacao() no inicio de garra_da_pantera.py, antes da GUI.
 """
 
+import hashlib
 import os
+import re
 import sys
 import json
 import zipfile
@@ -26,25 +28,52 @@ def _versao_local() -> str:
         return "0.0.0"
 
 
-def _versao_remota():
-    """Retorna (tag, url_do_zip) da release mais recente no GitHub."""
+def _versao_remota(api_url: str = API_URL):
+    """Retorna (tag, url_do_zip, url_do_checksum) da release mais recente no GitHub."""
     req = urllib.request.Request(
-        API_URL, headers={"User-Agent": "GarraDaPantera-Updater"}
+        api_url, headers={"User-Agent": "GarraDaPantera-Updater"}
     )
     with urllib.request.urlopen(req, timeout=10) as resp:
         data = json.loads(resp.read())
 
     tag = data["tag_name"].lstrip("v")
     zip_url = None
+    checksum_url = None
     for asset in data.get("assets", []):
-        if asset["name"].endswith(".zip"):
+        name = asset["name"]
+        if name.endswith(".zip"):
             zip_url = asset["browser_download_url"]
-            break
+        elif name.endswith(".zip.sha256"):
+            checksum_url = asset["browser_download_url"]
 
     if not zip_url:
         raise RuntimeError("Nenhum arquivo ZIP encontrado na release.")
+    if not checksum_url:
+        raise RuntimeError(
+            "Nenhum arquivo .sha256 encontrado na release; a atualizacao nao pode ser "
+            "verificada e foi cancelada por seguranca."
+        )
 
-    return tag, zip_url
+    return tag, zip_url, checksum_url
+
+
+def _baixar_checksum_esperado(checksum_url: str) -> str:
+    """Baixa e interpreta o arquivo <nome>.zip.sha256 (formato `sha256sum`: hash + nome do arquivo)."""
+    req = urllib.request.Request(checksum_url, headers={"User-Agent": "GarraDaPantera-Updater"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        texto = resp.read().decode("utf-8", errors="ignore").strip()
+    match = re.match(r"^([0-9a-fA-F]{64})", texto)
+    if not match:
+        raise RuntimeError("Arquivo de checksum invalido ou corrompido.")
+    return match.group(1).lower()
+
+
+def _sha256_arquivo(caminho: Path) -> str:
+    digest = hashlib.sha256()
+    with open(caminho, "rb") as f:
+        for bloco in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(bloco)
+    return digest.hexdigest().lower()
 
 
 def _versao_maior(nova: str, atual: str) -> bool:
@@ -57,16 +86,31 @@ def _versao_maior(nova: str, atual: str) -> bool:
         return False
 
 
-def _baixar_e_aplicar(zip_url: str, nova_versao: str) -> None:
-    """Baixa o ZIP e aplica a atualizacao via script .bat."""
-    print(f"[Atualizador] Baixando versao {nova_versao}...")
-
-    pasta_atual = Path(__file__).parent.resolve()
-    tmp_dir = Path(tempfile.mkdtemp(prefix="garra_update_"))
+def _baixar_e_verificar(zip_url: str, checksum_url: str, tmp_dir: Path) -> Path:
+    """Baixa o ZIP para uma pasta temporaria e so o devolve se o SHA-256 bater
+    exatamente com o publicado junto da release. Qualquer divergencia apaga o
+    download e levanta, para que o chamador nunca aplique um pacote nao
+    verificado (por exemplo, uma release corrompida ou uma resposta
+    adulterada por um MITM que nao tenha comprometido tambem o asset de
+    checksum)."""
     zip_path = tmp_dir / "update.zip"
-
     urllib.request.urlretrieve(zip_url, zip_path)
-    print("[Atualizador] Download concluido. Extraindo...")
+    print("[Atualizador] Download concluido. Verificando integridade...")
+
+    esperado = _baixar_checksum_esperado(checksum_url)
+    obtido = _sha256_arquivo(zip_path)
+    if obtido != esperado:
+        zip_path.unlink(missing_ok=True)
+        raise RuntimeError(
+            f"SHA-256 nao confere (esperado {esperado[:12]}..., obtido {obtido[:12]}...); "
+            "atualizacao descartada por seguranca."
+        )
+    return zip_path
+
+
+def _aplicar(zip_path: Path, nova_versao: str, tmp_dir: Path) -> None:
+    """Extrai o ZIP ja verificado e aplica a atualizacao via script .bat."""
+    pasta_atual = Path(__file__).parent.resolve()
 
     pasta_extraida = tmp_dir / "extraido"
     pasta_extraida.mkdir()
@@ -81,33 +125,30 @@ def _baixar_e_aplicar(zip_url: str, nova_versao: str) -> None:
     script_principal = pasta_atual / "garra_da_pantera.py"
     bat_path = tmp_dir / "aplicar_update.bat"
 
-    bat_path.write_text(
-        "@echo off
-"
-        f"echo Aplicando atualizacao {nova_versao}...
-"
-        "timeout /t 2 /nobreak >nul
-"
-        f'xcopy /E /Y /I "{pasta_nova}\*" "{pasta_atual}\"
-'
-        "echo Atualizacao concluida!
-"
-        f'start "" "{exe_atual}" "{script_principal}"
-'
-        'del "%~f0"
-',
-        encoding="utf-8",
-    )
+    linhas = [
+        "@echo off",
+        f"echo Aplicando atualizacao {nova_versao}...",
+        "timeout /t 2 /nobreak >nul",
+        f'xcopy /E /Y /I "{pasta_nova}\\*" "{pasta_atual}\\"',
+        "echo Atualizacao concluida!",
+        f'start "" "{exe_atual}" "{script_principal}"',
+        'del "%~f0"',
+    ]
+    bat_path.write_text("\r\n".join(linhas) + "\r\n", encoding="utf-8")
 
     print("[Atualizador] Reiniciando com a nova versao...")
-    subprocess.Popen(["cmd.exe", "/c", str(bat_path)], creationflags=subprocess.CREATE_NEW_CONSOLE)
+    creationflags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+    subprocess.Popen(["cmd.exe", "/c", str(bat_path)], creationflags=creationflags)
     sys.exit(0)
 
 
 def verificar_atualizacao(silencioso: bool = False) -> None:
     """
     Verifica se ha nova versao no GitHub Releases.
-    Se houver, baixa e aplica automaticamente (o programa e reiniciado).
+    Se houver, baixa, verifica o SHA-256 publicado junto da release e so
+    entao aplica (o programa e reiniciado). Uma release sem checksum, um
+    checksum que nao bate, ou qualquer falha de rede/API nunca aplicam nada
+    e nunca impedem o uso do programa.
 
     Parametros
     ----------
@@ -116,17 +157,21 @@ def verificar_atualizacao(silencioso: bool = False) -> None:
     """
     try:
         atual = _versao_local()
-        nova, zip_url = _versao_remota()
+        nova, zip_url, checksum_url = _versao_remota()
 
-        if _versao_maior(nova, atual):
-            print(f"[Atualizador] Nova versao: {nova}  (instalada: {atual})")
-            _baixar_e_aplicar(zip_url, nova)
-        else:
+        if not _versao_maior(nova, atual):
             if not silencioso:
                 print(f"[Atualizador] Programa atualizado (v{atual}).")
+            return
+
+        print(f"[Atualizador] Nova versao: {nova}  (instalada: {atual})")
+        print(f"[Atualizador] Baixando versao {nova}...")
+        tmp_dir = Path(tempfile.mkdtemp(prefix="garra_update_"))
+        zip_path = _baixar_e_verificar(zip_url, checksum_url, tmp_dir)
+        _aplicar(zip_path, nova, tmp_dir)
 
     except Exception as exc:
-        # Erro de rede ou API nao deve impedir o uso do programa
+        # Erro de rede, API ou checksum nao deve impedir o uso do programa
         print(f"[Atualizador] Nao foi possivel verificar atualizacoes: {exc}")
 
 
