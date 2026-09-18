@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+# Verificacao automatica de atualizacoes
+try:
+    from atualizador import verificar_atualizacao
+    verificar_atualizacao(silencioso=True)
+except Exception as _upd_err:
+    print(f"[Atualizador] Ignorado: {_upd_err}")
+
 import json
 import re
 import sys
