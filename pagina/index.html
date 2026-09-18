@@ -142,7 +142,7 @@
       <h1 class="hero-title">CORTE<br>MALHAS<br><span class="accent">3D COM IA</span></h1>
       <p class="hero-sub">Segmente e recorte modelos <strong>STL, OBJ e PLY</strong> de forma inteligente com SegFormer + CLIPSeg. Selecione por linguagem natural — sem comandos técnicos.</p>
       <div class="hero-actions">
-        <a href="/downloads/GarraDaPantera-Installer.exe" id="hero-download-btn" class="btn-download" download>
+        <a href="/downloads/GarraDaPantera-v2.3.2-Installer.exe" id="hero-download-btn" class="btn-download" download>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Baixar para Windows
         </a>
@@ -278,8 +278,8 @@
     <h2 class="download-title">PRONTO PARA<br>COMEÇAR?</h2>
     <p class="download-sub">Instale em minutos. Atualizações automáticas para sempre.</p>
     <div class="download-box">
-      <div id="version-badge">versão v2.3.1 · instalador verificado</div>
-      <a href="/downloads/GarraDaPantera-Installer.exe" id="main-download-btn" class="btn-download" download style="font-size:1.1rem;padding:1rem 2.2rem;">
+      <div id="version-badge">versão v2.3.2 · instalador verificado</div>
+      <a href="/downloads/GarraDaPantera-v2.3.2-Installer.exe" id="main-download-btn" class="btn-download" download style="font-size:1.1rem;padding:1rem 2.2rem;">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Baixar Garra da Pantera
       </a>
@@ -316,7 +316,7 @@ async function fetchRelease() {
     const tag = d.tag_name || 'v1.0.0';
     document.getElementById('version-badge').textContent = 'versão ' + tag;
   } catch(e) {
-    document.getElementById('version-badge').textContent = 'versão v2.3.1 · instalador Windows';
+    document.getElementById('version-badge').textContent = 'versão v2.3.2 · instalador Windows';
   }
 }
 fetchRelease();

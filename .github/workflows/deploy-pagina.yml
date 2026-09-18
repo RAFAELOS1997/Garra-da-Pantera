@@ -24,14 +24,14 @@ jobs:
           for ATTEMPT in $(seq 1 18); do
             if gh release download "v${VERSION}" \
               --pattern '*Installer.exe' \
-              --output pagina/downloads/GarraDaPantera-Installer.exe \
+              --output "pagina/downloads/GarraDaPantera-v${VERSION}-Installer.exe" \
               --clobber; then
               break
             fi
             echo "Instalador v${VERSION} ainda não está disponível (tentativa ${ATTEMPT}/18)."
             sleep 10
           done
-          test -s pagina/downloads/GarraDaPantera-Installer.exe
+          test -s "pagina/downloads/GarraDaPantera-v${VERSION}-Installer.exe"
 
       - name: Deploy via FTP para Hostinger
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
