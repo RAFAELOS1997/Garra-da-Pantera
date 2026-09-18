@@ -1,194 +1,434 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Garra da Pantera</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Garra da Pantera — Segmentação 3D com IA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
   <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; }
     :root {
-      --preto: #0a0a0a;
-      --roxo: #7c3aed;
-      --roxo-claro: #a78bfa;
-      --branco: #f8f8f8;
-      --cinza: #1e1e2e;
-      --cinza2: #2a2a3e;
+      --bg: #050508; --surface: #0F0F1A; --surface2: #181826;
+      --border: #2A2840; --accent: #7C3AED; --accent-soft: #A78BFA;
+      --accent-glow: rgba(124,58,237,0.18); --accent-line: rgba(124,58,237,0.35);
+      --text: #EDECF4; --muted: #8B8AA0; --subtle: #5A5870; --green: #10B981;
+      --font-display: 'Bebas Neue', sans-serif;
+      --font-body: 'DM Sans', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
     }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      background: var(--preto);
-      color: var(--branco);
-      font-family: 'Segoe UI', system-ui, sans-serif;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+    body { background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 16px; line-height: 1.6; overflow-x: hidden; }
+    nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; padding: 1.1rem 2rem; background: rgba(5,5,8,0.8); backdrop-filter: blur(18px); border-bottom: 1px solid rgba(42,40,64,0.5); }
+    .nav-logo { font-family: var(--font-display); font-size: 1.4rem; letter-spacing: .08em; color: var(--text); display: flex; align-items: center; gap: .5rem; }
+    .nav-logo .claw { color: var(--accent-soft); }
+    .nav-links { display: flex; gap: 2rem; list-style: none; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: .875rem; font-weight: 500; transition: color .2s; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta { background: var(--accent); color: #fff; border: none; padding: .5rem 1.2rem; border-radius: 6px; font-family: var(--font-body); font-size: .875rem; font-weight: 600; cursor: pointer; transition: background .2s; text-decoration: none; }
+    .nav-cta:hover { background: #6D28D9; }
+    .hero { position: relative; min-height: 100vh; display: flex; align-items: center; overflow: hidden; padding-top: 80px; }
+    #mesh-canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .55; pointer-events: none; }
+    .hero-inner { position: relative; z-index: 2; max-width: 1100px; margin: 0 auto; padding: 0 2rem; display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; }
+    .hero-badge { display: inline-flex; align-items: center; gap: .5rem; font-family: var(--font-mono); font-size: .7rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--accent-soft); background: var(--accent-glow); border: 1px solid var(--accent-line); padding: .35rem .8rem; border-radius: 100px; margin-bottom: 1.5rem; }
+    .hero-badge::before { content: '●'; font-size: .5rem; }
+    .hero-title { font-family: var(--font-display); font-size: clamp(3.5rem, 8vw, 6.5rem); line-height: .95; letter-spacing: .02em; color: var(--text); margin-bottom: 1.5rem; }
+    .hero-title .accent { color: var(--accent-soft); }
+    .hero-sub { font-size: 1.05rem; color: var(--muted); line-height: 1.7; max-width: 480px; margin-bottom: 2.5rem; font-weight: 300; }
+    .hero-sub strong { color: var(--text); font-weight: 500; }
+    .hero-actions { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+    .btn-download { display: inline-flex; align-items: center; gap: .6rem; background: var(--accent); color: #fff; text-decoration: none; padding: .85rem 1.8rem; border-radius: 8px; font-weight: 600; font-size: 1rem; transition: background .2s, transform .15s, box-shadow .2s; box-shadow: 0 0 32px rgba(124,58,237,.35); }
+    .btn-download:hover { background: #6D28D9; transform: translateY(-2px); box-shadow: 0 0 48px rgba(124,58,237,.5); }
+    .btn-secondary { color: var(--muted); text-decoration: none; font-size: .9rem; font-weight: 500; transition: color .2s; display: flex; align-items: center; gap: .4rem; }
+    .btn-secondary:hover { color: var(--text); }
+    .hero-meta { margin-top: 2rem; font-family: var(--font-mono); font-size: .72rem; color: var(--subtle); display: flex; gap: 1.5rem; flex-wrap: wrap; }
+    .hero-meta span { display: flex; align-items: center; gap: .4rem; }
+    .meta-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); display: inline-block; }
+    .hero-visual { display: flex; flex-direction: column; gap: 1rem; }
+    .visual-window { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 24px 80px rgba(0,0,0,.5); }
+    .window-bar { display: flex; align-items: center; gap: .5rem; padding: .75rem 1rem; background: var(--surface2); border-bottom: 1px solid var(--border); }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot-r { background: #FF5F57; } .dot-y { background: #FEBC2E; } .dot-g { background: #28C840; }
+    .window-title { font-family: var(--font-mono); font-size: .7rem; color: var(--subtle); margin-left: auto; }
+    .visual-body { padding: 1.2rem; min-height: 280px; display: flex; align-items: center; justify-content: center; background: #07070F; }
+    #app-canvas { width: 100%; height: 260px; border-radius: 6px; }
+    .visual-tags { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .tag { font-family: var(--font-mono); font-size: .65rem; padding: .3rem .65rem; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
+    .tag.accent { background: var(--accent-glow); border-color: var(--accent-line); color: var(--accent-soft); }
+    .stats { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--surface); padding: 1.2rem 2rem; }
+    .stats-inner { max-width: 1100px; margin: 0 auto; display: flex; gap: 2rem; justify-content: center; flex-wrap: wrap; }
+    .stat { text-align: center; display: flex; flex-direction: column; gap: .15rem; }
+    .stat-num { font-family: var(--font-display); font-size: 2rem; letter-spacing: .04em; color: var(--text); line-height: 1; }
+    .stat-num .unit { font-size: 1.1rem; color: var(--accent-soft); }
+    .stat-label { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; font-weight: 500; }
+    .stat-sep { width: 1px; background: var(--border); align-self: stretch; }
+    section { padding: 6rem 2rem; }
+    .section-max { max-width: 1100px; margin: 0 auto; }
+    .eyebrow { font-family: var(--font-mono); font-size: .7rem; font-weight: 600; letter-spacing: .15em; text-transform: uppercase; color: var(--accent-soft); margin-bottom: 1rem; }
+    .section-title { font-family: var(--font-display); font-size: clamp(2.2rem, 5vw, 3.4rem); letter-spacing: .03em; line-height: 1; margin-bottom: 1rem; }
+    .section-sub { color: var(--muted); font-size: .95rem; max-width: 520px; line-height: 1.7; font-weight: 300; }
+    .features-header { margin-bottom: 3.5rem; }
+    .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .feature { background: var(--surface); padding: 2.2rem; transition: background .2s; }
+    .feature:hover { background: var(--surface2); }
+    .feature-icon { width: 44px; height: 44px; border-radius: 10px; background: var(--accent-glow); border: 1px solid var(--accent-line); display: flex; align-items: center; justify-content: center; margin-bottom: 1.3rem; color: var(--accent-soft); }
+    .feature-name { font-size: 1.05rem; font-weight: 600; margin-bottom: .5rem; color: var(--text); }
+    .feature-desc { font-size: .875rem; color: var(--muted); line-height: 1.65; font-weight: 300; }
+    .how { background: var(--surface); }
+    .how-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 5rem; align-items: center; }
+    .steps { display: flex; flex-direction: column; gap: 0; }
+    .step { display: flex; gap: 1.2rem; padding: 1.6rem 0; border-bottom: 1px solid var(--border); }
+    .step:last-child { border-bottom: none; }
+    .step-num { font-family: var(--font-mono); font-size: .65rem; font-weight: 600; color: var(--accent); background: var(--accent-glow); border: 1px solid var(--accent-line); border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: .15rem; }
+    .step-name { font-size: .95rem; font-weight: 600; margin-bottom: .3rem; }
+    .step-desc { font-size: .85rem; color: var(--muted); line-height: 1.6; font-weight: 300; }
+    .how-visual { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; font-family: var(--font-mono); font-size: .75rem; color: var(--muted); line-height: 1.9; }
+    .how-visual .comment { color: var(--subtle); }
+    .how-visual .str { color: #C4B5FD; }
+    .how-visual .kw { color: #F472B6; }
+    .how-visual .fn { color: #60A5FA; }
+    .cursor { display: inline-block; width: 8px; height: 1em; background: var(--accent-soft); animation: blink 1s step-end infinite; vertical-align: text-bottom; margin-left: 2px; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+    .formats-grid { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 2.5rem; }
+    .format-pill { display: flex; align-items: center; gap: .6rem; padding: .75rem 1.2rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; font-family: var(--font-mono); font-size: .8rem; font-weight: 600; color: var(--text); transition: border-color .2s; }
+    .format-pill:hover { border-color: var(--accent-line); }
+    .format-pill .ext { color: var(--accent-soft); font-size: .7rem; }
+    .download-section { text-align: center; position: relative; overflow: hidden; }
+    .download-section::before { content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 600px; height: 600px; background: radial-gradient(circle, rgba(124,58,237,.12) 0%, transparent 70%); pointer-events: none; }
+    .download-inner { position: relative; max-width: 680px; margin: 0 auto; }
+    .download-title { font-family: var(--font-display); font-size: clamp(2.8rem, 6vw, 4.5rem); letter-spacing: .03em; line-height: .95; margin-bottom: 1.2rem; }
+    .download-sub { color: var(--muted); margin-bottom: 2.5rem; font-size: .95rem; font-weight: 300; }
+    .download-box { display: inline-flex; flex-direction: column; align-items: center; gap: 1.2rem; }
+    #version-badge { font-family: var(--font-mono); font-size: .7rem; color: var(--accent-soft); background: var(--accent-glow); border: 1px solid var(--accent-line); padding: .3rem .8rem; border-radius: 100px; letter-spacing: .08em; }
+    .requirements { display: flex; gap: 1.5rem; justify-content: center; flex-wrap: wrap; margin-top: 1rem; }
+    .req { font-size: .75rem; color: var(--subtle); display: flex; align-items: center; gap: .4rem; }
+    footer { border-top: 1px solid var(--border); padding: 2rem; }
+    .footer-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+    .footer-logo { font-family: var(--font-display); font-size: 1.1rem; color: var(--subtle); letter-spacing: .08em; }
+    .footer-links { display: flex; gap: 1.5rem; }
+    .footer-links a { color: var(--subtle); font-size: .8rem; text-decoration: none; transition: color .2s; }
+    .footer-links a:hover { color: var(--text); }
+    .footer-copy { font-size: .75rem; color: var(--subtle); font-family: var(--font-mono); }
+    @media (max-width: 800px) {
+      .nav-links { display: none; }
+      .hero-inner { grid-template-columns: 1fr; gap: 2.5rem; }
+      .hero-visual { order: -1; }
+      .features-grid { grid-template-columns: 1fr; }
+      .how-layout { grid-template-columns: 1fr; }
+      .how-visual { display: none; }
+      .footer-inner { flex-direction: column; text-align: center; }
     }
-    header {
-      width: 100%;
-      background: rgba(10,10,10,0.9);
-      backdrop-filter: blur(10px);
-      border-bottom: 1px solid #222;
-      padding: 1rem 2rem;
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-    header .logo {
-      font-size: 1.4rem;
-      font-weight: 700;
-      color: var(--roxo-claro);
-      letter-spacing: -0.5px;
-    }
-    header .logo span { color: var(--branco); }
-    .hero {
-      max-width: 900px;
-      width: 100%;
-      padding: 5rem 2rem 3rem;
-      text-align: center;
-    }
-    .hero h1 {
-      font-size: clamp(2rem, 6vw, 3.5rem);
-      font-weight: 800;
-      line-height: 1.1;
-      margin-bottom: 1.25rem;
-    }
-    .hero h1 .destaque { color: var(--roxo-claro); }
-    .hero p {
-      font-size: 1.15rem;
-      color: #aaa;
-      max-width: 600px;
-      margin: 0 auto 2.5rem;
-      line-height: 1.7;
-    }
-    .btn-download {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.6rem;
-      background: var(--roxo);
-      color: #fff;
-      font-size: 1.1rem;
-      font-weight: 600;
-      padding: 0.9rem 2.2rem;
-      border-radius: 10px;
-      text-decoration: none;
-      transition: background 0.2s, transform 0.15s;
-      border: none;
-      cursor: pointer;
-    }
-    .btn-download:hover { background: #6d28d9; transform: translateY(-2px); }
-    .btn-download:disabled { background: #444; cursor: not-allowed; transform: none; }
-    .versao-info {
-      margin-top: 0.75rem;
-      font-size: 0.88rem;
-      color: #666;
-    }
-    .features {
-      max-width: 900px;
-      width: 100%;
-      padding: 3rem 2rem 5rem;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 1.5rem;
-    }
-    .card {
-      background: var(--cinza);
-      border: 1px solid #2a2a3e;
-      border-radius: 14px;
-      padding: 1.75rem;
-    }
-    .card .icone { font-size: 2rem; margin-bottom: 0.75rem; }
-    .card h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 0.5rem; }
-    .card p { font-size: 0.9rem; color: #888; line-height: 1.6; }
-    footer {
-      width: 100%;
-      text-align: center;
-      padding: 1.5rem;
-      border-top: 1px solid #1a1a1a;
-      color: #444;
-      font-size: 0.82rem;
-    }
-    footer a { color: #555; text-decoration: none; }
-    footer a:hover { color: var(--roxo-claro); }
   </style>
 </head>
 <body>
-  <header>
-    <div class="logo">Garra <span>da Pantera</span></div>
-  </header>
 
-  <section class="hero">
-    <h1>Corte malhas 3D com<br><span class="destaque">precisao cirurgica</span></h1>
-    <p>
-      Software desktop com IA local para segmentacao e corte de modelos STL, OBJ e PLY.
-      Sem internet, sem nuvem — tudo roda na sua maquina.
-    </p>
-    <a href="#" id="btn-download" class="btn-download" disabled>
-      &#8595; Carregando...
-    </a>
-    <div class="versao-info" id="versao-info"></div>
-  </section>
+<nav>
+  <div class="nav-logo">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 3l4 9-4 9h18l-4-9 4-9H3z" stroke="#A78BFA"/><line x1="7" y1="12" x2="17" y2="12" stroke="#A78BFA"/></svg>
+    GARRA <span class="claw">DA PANTERA</span>
+  </div>
+  <ul class="nav-links">
+    <li><a href="#recursos">Recursos</a></li>
+    <li><a href="#como-usar">Como usar</a></li>
+    <li><a href="#download">Download</a></li>
+  </ul>
+  <a href="#download" class="nav-cta">↓ Baixar</a>
+</nav>
 
-  <section class="features">
-    <div class="card">
-      <div class="icone">🧠</div>
-      <h3>IA Local</h3>
-      <p>SegFormer + CLIPSeg rodam inteiramente no seu computador. Seus arquivos nunca saem da maquina.</p>
+<section class="hero">
+  <canvas id="mesh-canvas"></canvas>
+  <div class="hero-inner">
+    <div class="hero-content">
+      <div class="hero-badge">Segmentação 3D com IA</div>
+      <h1 class="hero-title">CORTE<br>MALHAS<br><span class="accent">3D COM IA</span></h1>
+      <p class="hero-sub">Segmente e recorte modelos <strong>STL, OBJ e PLY</strong> de forma inteligente com SegFormer + CLIPSeg. Selecione por linguagem natural — sem comandos técnicos.</p>
+      <div class="hero-actions">
+        <a href="#" id="hero-download-btn" class="btn-download">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Baixar para Windows
+        </a>
+        <a href="https://github.com/RAFAELOS1997/Garra-da-Pantera" class="btn-secondary" target="_blank">Ver no GitHub</a>
+      </div>
+      <div class="hero-meta">
+        <span><span class="meta-dot"></span>Atualização automática</span>
+        <span>· Windows 10/11</span>
+        <span>· Python 3.10+</span>
+      </div>
     </div>
-    <div class="card">
-      <div class="icone">✂️</div>
-      <h3>Corte Preciso</h3>
-      <p>Selecione regioes por texto ou ponto de clique e obtenha cortes suaves prontos para impressao.</p>
+    <div class="hero-visual">
+      <div class="visual-window">
+        <div class="window-bar">
+          <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+          <div class="window-title">garra_da_pantera.py</div>
+        </div>
+        <div class="visual-body"><canvas id="app-canvas"></canvas></div>
+      </div>
+      <div class="visual-tags">
+        <span class="tag accent">SegFormer</span><span class="tag accent">CLIPSeg</span>
+        <span class="tag">.STL</span><span class="tag">.OBJ</span><span class="tag">.PLY</span><span class="tag">GUI Python</span>
+      </div>
     </div>
-    <div class="card">
-      <div class="icone">🔄</div>
-      <h3>Atualizacao Automatica</h3>
-      <p>O programa verifica novas versoes ao iniciar e se atualiza sozinho, sem reinstalacao manual.</p>
-    </div>
-    <div class="card">
-      <div class="icone">📦</div>
-      <h3>Formatos Suportados</h3>
-      <p>Importa STL, OBJ e PLY. Exporta malhas validadas, watertight e prontas para o slicer.</p>
-    </div>
-  </section>
+  </div>
+</section>
 
-  <footer>
-    <p>
-      Garra da Pantera &copy; 2024 &middot;
+<div class="stats">
+  <div class="stats-inner">
+    <div class="stat"><div class="stat-num">3<span class="unit">+</span></div><div class="stat-label">Formatos</div></div>
+    <div class="stat-sep"></div>
+    <div class="stat"><div class="stat-num">2<span class="unit">×</span></div><div class="stat-label">Modelos de IA</div></div>
+    <div class="stat-sep"></div>
+    <div class="stat"><div class="stat-num">1<span class="unit">-click</span></div><div class="stat-label">Instalação</div></div>
+    <div class="stat-sep"></div>
+    <div class="stat"><div class="stat-num">∞</div><div class="stat-label">Auto-updates</div></div>
+  </div>
+</div>
+
+<section id="recursos">
+  <div class="section-max">
+    <div class="features-header">
+      <div class="eyebrow">Recursos</div>
+      <h2 class="section-title">IA NO COMANDO<br>VOCÊ NO CONTROLE</h2>
+      <p class="section-sub">Do upload ao corte final — tudo em uma interface visual, sem linha de código.</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature">
+        <div class="feature-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+        <div class="feature-name">Segmentação Semântica</div>
+        <div class="feature-desc">Descreva a região em linguagem natural e o CLIPSeg identifica com precisão a área no modelo 3D.</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+        <div class="feature-name">SegFormer Integrado</div>
+        <div class="feature-desc">Classificação pixel-a-pixel via transformer de última geração, otimizado para meshes complexas.</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
+        <div class="feature-name">Export Direto</div>
+        <div class="feature-desc">Salve as partes segmentadas em STL, OBJ ou PLY. Pronto para impressão 3D e simulação.</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+        <div class="feature-name">Interface GUI Nativa</div>
+        <div class="feature-desc">Painel visual com preview 3D em tempo real. Gire, inspecione e confirme antes de cortar.</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></div>
+        <div class="feature-name">Instalação Simples</div>
+        <div class="feature-desc">Execute o <code style="font-family:var(--font-mono);font-size:.8em;color:var(--accent-soft)">setup.ps1</code> uma vez e tudo fica configurado — dependências e GPU automaticamente.</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg></div>
+        <div class="feature-name">Auto-atualização</div>
+        <div class="feature-desc">Ao iniciar, o programa verifica automaticamente se há nova versão no GitHub e atualiza sozinho.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="how" id="como-usar">
+  <div class="section-max">
+    <div class="how-layout">
+      <div>
+        <div class="eyebrow">Como usar</div>
+        <h2 class="section-title">SIMPLES DO<br>INÍCIO AO FIM</h2>
+        <div class="steps">
+          <div class="step"><div class="step-num">01</div><div><div class="step-name">Baixe e instale</div><div class="step-desc">Extraia o ZIP e execute <code style="font-family:var(--font-mono);font-size:.8em;color:var(--accent-soft)">setup.ps1</code>. Configura Python, dependências e ambiente em um clique.</div></div></div>
+          <div class="step"><div class="step-num">02</div><div><div class="step-name">Importe sua malha</div><div class="step-desc">Arraste um arquivo STL, OBJ ou PLY. O modelo aparece renderizado em 3D imediatamente.</div></div></div>
+          <div class="step"><div class="step-num">03</div><div><div class="step-name">Descreva o corte</div><div class="step-desc">Digite o que deseja segmentar em português. A IA localiza a região e gera a seleção visual.</div></div></div>
+          <div class="step"><div class="step-num">04</div><div><div class="step-name">Exporte a peça</div><div class="step-desc">Confirme, escolha o formato e salve. Cada parte fica em um arquivo separado.</div></div></div>
+        </div>
+      </div>
+      <div class="how-visual">
+        <div style="margin-bottom:.8rem;color:var(--subtle);font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;">Terminal — Garra da Pantera</div>
+        <span class="comment"># Verificando atualizações...</span><br>
+        <span style="color:#60A5FA">verificar_atualizacao</span>(<span class="str">silencioso=True</span>)<br>
+        <span class="comment"># ✓ Programa atualizado (v1.0.0)</span><br><br>
+        <span class="comment"># Carregando modelo...</span><br>
+        m = <span style="color:#60A5FA">Mesh</span>.<span style="color:#60A5FA">load</span>(<span class="str">"modelo.stl"</span>)<br>
+        <span class="comment"># 38.421 vértices · 76.840 faces</span><br><br>
+        <span class="comment"># Segmentando com CLIPSeg...</span><br>
+        regiao = <span style="color:#60A5FA">clipSeg</span>(<span class="str">"base inferior"</span>)<br>
+        <span class="comment"># Confiança: 94.7% · 12.301 faces</span><br><br>
+        m.<span style="color:#60A5FA">export</span>(<span class="str">"base.stl"</span>, regiao)<br>
+        <span class="comment"># ✓ Salvo com sucesso</span><span class="cursor"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="section-max">
+    <div class="eyebrow">Compatibilidade</div>
+    <h2 class="section-title">FORMATOS<br>SUPORTADOS</h2>
+    <p class="section-sub">Trabalhe com os principais formatos de malha 3D.</p>
+    <div class="formats-grid">
+      <div class="format-pill"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><span class="ext">.STL</span> Stereolithography</div>
+      <div class="format-pill"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><span class="ext">.OBJ</span> Wavefront Object</div>
+      <div class="format-pill"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><span class="ext">.PLY</span> Polygon File Format</div>
+      <div class="format-pill" style="border-color:var(--accent-line);color:var(--muted);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        Mais em breve
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="download-section" id="download">
+  <div class="download-inner">
+    <div class="eyebrow" style="margin-bottom:1.5rem;">Download gratuito</div>
+    <h2 class="download-title">PRONTO PARA<br>COMEÇAR?</h2>
+    <p class="download-sub">Instale em minutos. Atualizações automáticas para sempre.</p>
+    <div class="download-box">
+      <div id="version-badge">carregando versão...</div>
+      <a href="#" id="main-download-btn" class="btn-download" style="font-size:1.1rem;padding:1rem 2.2rem;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Baixar Garra da Pantera
+      </a>
+      <div class="requirements">
+        <span class="req"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Windows 10 / 11</span>
+        <span class="req"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Python 3.10+</span>
+        <span class="req"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>GPU recomendada (CUDA)</span>
+        <span class="req"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>4 GB RAM+</span>
+      </div>
+      <a href="https://github.com/RAFAELOS1997/Garra-da-Pantera" class="btn-secondary" target="_blank" style="margin-top:.5rem;">Ver código-fonte no GitHub →</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-logo">GARRA DA PANTERA</div>
+    <div class="footer-links">
       <a href="https://github.com/RAFAELOS1997/Garra-da-Pantera" target="_blank">GitHub</a>
-    </p>
-  </footer>
+      <a href="https://github.com/RAFAELOS1997/Garra-da-Pantera/releases" target="_blank">Releases</a>
+      <a href="https://github.com/RAFAELOS1997/Garra-da-Pantera/issues" target="_blank">Issues</a>
+    </div>
+    <div class="footer-copy">garra.tocadapantera.com.br</div>
+  </div>
+</footer>
 
-  <script>
-    (async function () {
-      const btn = document.getElementById('btn-download');
-      const info = document.getElementById('versao-info');
-      try {
-        const res = await fetch('https://api.github.com/repos/RAFAELOS1997/Garra-da-Pantera/releases/latest');
-        if (!res.ok) throw new Error('status ' + res.status);
-        const data = await res.json();
-        const tag = data.tag_name || '';
-        const asset = (data.assets || []).find(a => a.name.endsWith('.zip'));
-        if (asset) {
-          btn.href = asset.browser_download_url;
-          btn.textContent = '\u2b07 Baixar ' + tag + ' (.zip)';
-          btn.removeAttribute('disabled');
-          const mb = (asset.size / 1024 / 1024).toFixed(1);
-          info.textContent = tag + ' • ' + mb + ' MB • Windows x64';
-        } else {
-          btn.href = data.html_url || '#';
-          btn.textContent = '\u2b07 Ver release ' + tag;
-          btn.removeAttribute('disabled');
-        }
-      } catch (e) {
-        btn.href = 'https://github.com/RAFAELOS1997/Garra-da-Pantera/releases/latest';
-        btn.textContent = '\u2b07 Baixar ultima versao';
-        btn.removeAttribute('disabled');
-        info.textContent = 'Acesse o GitHub para o link direto';
-      }
-    })();
-  </script>
+<script>
+const REPO = 'RAFAELOS1997/Garra-da-Pantera';
+async function fetchRelease() {
+  try {
+    const r = await fetch('https://api.github.com/repos/' + REPO + '/releases/latest');
+    if (!r.ok) throw new Error('no release');
+    const d = await r.json();
+    const tag = d.tag_name || 'v1.0.0';
+    const asset = d.assets && d.assets.find(function(a){return a.name.endsWith('.zip');});
+    const url = (asset && asset.browser_download_url) || d.html_url;
+    document.getElementById('version-badge').textContent = 'versão ' + tag;
+    ['hero-download-btn','main-download-btn'].forEach(function(id){
+      var el = document.getElementById(id); if(el) el.href = url;
+    });
+  } catch(e) {
+    document.getElementById('version-badge').textContent = 'ver. mais recente';
+    ['hero-download-btn','main-download-btn'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.href = 'https://github.com/' + REPO + '/releases/latest';
+    });
+  }
+}
+fetchRelease();
+
+(function() {
+  var canvas = document.getElementById('mesh-canvas');
+  var ctx = canvas.getContext('2d');
+  var W, H, pts, edges, angle = 0, lastT = 0;
+  function resize() { W = canvas.width = canvas.offsetWidth; H = canvas.height = canvas.offsetHeight; buildMesh(); }
+  function buildMesh() {
+    pts = []; edges = [];
+    var N = 80;
+    for(var i=0;i<N;i++){
+      var theta = Math.acos(1-2*(i+.5)/N), phi = Math.PI*(1+Math.sqrt(5))*i;
+      pts.push({x:Math.sin(theta)*Math.cos(phi), y:Math.sin(theta)*Math.sin(phi), z:Math.cos(theta)});
+    }
+    for(var a=0;a<pts.length;a++) for(var b=a+1;b<pts.length;b++){
+      var dx=pts[a].x-pts[b].x, dy=pts[a].y-pts[b].y, dz=pts[a].z-pts[b].z;
+      if(dx*dx+dy*dy+dz*dz<.35) edges.push([a,b]);
+    }
+  }
+  function project(p, a) {
+    var cx=Math.cos(a), sx=Math.sin(a), cy=Math.cos(a*0.4), sy=Math.sin(a*0.4);
+    var x=p.x*cx-p.z*sx, z=p.x*sx+p.z*cx, y2=p.y*cy-z*sy, z2=p.y*sy+z*cy;
+    var fov=3.2, scale=fov/(fov+z2), r=Math.min(W,H)*0.4;
+    return {sx:W/2+x*scale*r, sy:H/2+y2*scale*r, depth:z2};
+  }
+  function draw(ts) {
+    var dt=Math.min((ts-lastT)/1000,.05); lastT=ts; angle+=dt*0.18;
+    ctx.clearRect(0,0,W,H);
+    var proj=pts.map(function(p){return project(p,angle);});
+    ctx.lineWidth=0.6;
+    for(var i=0;i<edges.length;i++){
+      var a=proj[edges[i][0]], b=proj[edges[i][1]];
+      var depth=(a.depth+b.depth)/2, alpha=Math.max(0,Math.min(.55,(depth+1.5)/3));
+      ctx.strokeStyle='rgba(124,58,237,'+alpha+')';
+      ctx.beginPath(); ctx.moveTo(a.sx,a.sy); ctx.lineTo(b.sx,b.sy); ctx.stroke();
+    }
+    for(var j=0;j<proj.length;j++){
+      var p=proj[j], al=Math.max(0,(p.depth+1.5)/3)*0.8;
+      ctx.beginPath(); ctx.arc(p.sx,p.sy,1.5,0,Math.PI*2);
+      ctx.fillStyle='rgba(167,139,250,'+al+')'; ctx.fill();
+    }
+    requestAnimationFrame(draw);
+  }
+  resize(); window.addEventListener('resize', resize); requestAnimationFrame(draw);
+})();
+
+(function() {
+  var c = document.getElementById('app-canvas');
+  var ctx = c.getContext('2d');
+  var W, H, t = 0, scanY = 30, scanDir = 1;
+  function resize() { var rect=c.getBoundingClientRect(); W=c.width=rect.width||400; H=c.height=rect.height||260; scanY=H*0.2; }
+  function meshPts() {
+    var cx=W/2, cy=H/2-10, r=Math.min(W,H)*0.3, pts=[];
+    for(var lat=-7;lat<=7;lat++) for(var lng=0;lng<=14;lng++){
+      var a=(lng/14)*Math.PI*2, b=(lat/7)*Math.PI/2;
+      var rx=r*(1+0.2*Math.cos(b*2))*Math.cos(b), ry=r*0.6*Math.sin(b);
+      pts.push({x:cx+rx*Math.cos(a)*0.8, y:cy+ry-rx*Math.sin(a)*0.15});
+    }
+    return pts;
+  }
+  function frame(ts) {
+    t=ts*0.001; scanY+=scanDir*0.7;
+    if(scanY>H*0.75||scanY<H*0.1) scanDir*=-1;
+    ctx.clearRect(0,0,W,H); ctx.fillStyle='#07070F'; ctx.fillRect(0,0,W,H);
+    var pts=meshPts(), cols=15, threshY=H*0.55;
+    ctx.strokeStyle='rgba(42,40,64,0.7)'; ctx.lineWidth=0.5;
+    for(var x=0;x<W;x+=22){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+    for(var y=0;y<H;y+=22){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+    ctx.strokeStyle='rgba(90,88,112,0.5)'; ctx.lineWidth=0.8;
+    for(var r=0;r<14;r++) for(var col=0;col<cols;col++){
+      var i=r*cols+col, ni=(r+1)*cols+col, ri=r*cols+(col+1)%cols;
+      if(pts[i]&&pts[ni]){ctx.beginPath();ctx.moveTo(pts[i].x,pts[i].y);ctx.lineTo(pts[ni].x,pts[ni].y);ctx.stroke();}
+      if(pts[i]&&pts[ri]){ctx.beginPath();ctx.moveTo(pts[i].x,pts[i].y);ctx.lineTo(pts[ri].x,pts[ri].y);ctx.stroke();}
+    }
+    var grd=ctx.createLinearGradient(0,threshY-30,0,H);
+    grd.addColorStop(0,'rgba(124,58,237,0)'); grd.addColorStop(.3,'rgba(124,58,237,0.12)'); grd.addColorStop(1,'rgba(124,58,237,0.05)');
+    ctx.fillStyle=grd; ctx.fillRect(0,threshY-30,W,H);
+    ctx.strokeStyle='rgba(167,139,250,0.7)'; ctx.lineWidth=1.2;
+    for(var r2=7;r2<14;r2++) for(var col2=0;col2<cols;col2++){
+      var i2=r2*cols+col2, ni2=(r2+1)*cols+col2, ri2=r2*cols+(col2+1)%cols;
+      if(pts[i2]&&pts[ni2]){ctx.beginPath();ctx.moveTo(pts[i2].x,pts[i2].y);ctx.lineTo(pts[ni2].x,pts[ni2].y);ctx.stroke();}
+      if(pts[i2]&&pts[ri2]){ctx.beginPath();ctx.moveTo(pts[i2].x,pts[i2].y);ctx.lineTo(pts[ri2].x,pts[ri2].y);ctx.stroke();}
+    }
+    ctx.strokeStyle='rgba(124,58,237,'+(0.6+0.3*Math.sin(t*3))+')';
+    ctx.lineWidth=1.5; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(0,scanY); ctx.lineTo(W,scanY); ctx.stroke(); ctx.setLineDash([]);
+    var sg=ctx.createLinearGradient(0,scanY-12,0,scanY+12);
+    sg.addColorStop(0,'rgba(124,58,237,0)'); sg.addColorStop(.5,'rgba(124,58,237,'+(0.12+0.06*Math.sin(t*3))+')'); sg.addColorStop(1,'rgba(124,58,237,0)');
+    ctx.fillStyle=sg; ctx.fillRect(0,scanY-12,W,24);
+    for(var k=0;k<pts.length;k++){
+      var p=pts[k], seg=p.y>threshY;
+      ctx.beginPath(); ctx.arc(p.x,p.y,seg?2.5:1.5,0,Math.PI*2);
+      ctx.fillStyle=seg?'rgba(167,139,250,0.9)':'rgba(90,88,112,0.3)'; ctx.fill();
+    }
+    ctx.fillStyle='rgba(167,139,250,0.9)';
+    ctx.font='500 10px "JetBrains Mono",monospace';
+    ctx.fillText('segmento: base inferior  94.7%',12,H-14);
+    requestAnimationFrame(frame);
+  }
+  resize(); new ResizeObserver(resize).observe(c); requestAnimationFrame(frame);
+})();
+</script>
 </body>
 </html>
