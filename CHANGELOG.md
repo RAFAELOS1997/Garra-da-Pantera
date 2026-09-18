@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.3.1 - 2026-09-18
+
+- Fixed the Inno Setup script so the Windows installer compiles successfully.
+- Updated release checkout steps to the Node 24 compatible action.
+
 ## 2.3.0 integration - 2026-09-18
 
 - Integrated native curvature-aware 3D click segmentation, precision PyMeshFix repair and optional pin/socket connectors from the latest main branch.

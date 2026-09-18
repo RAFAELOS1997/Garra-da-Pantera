@@ -97,12 +97,10 @@ begin
   Result := True;
   if not PythonInstalled then
     MsgBox(
-      'Python 3.10 ou superior nao foi encontrado no seu computador.' + #13#10 +
-      #13#10 +
+      'Python 3.10 ou superior nao foi encontrado no seu computador.' + #13#10#13#10 +
       'O Garra da Pantera requer Python para funcionar.' + #13#10 +
       'Baixe em: https://www.python.org/downloads/' + #13#10 +
-      '(marque "Add Python to PATH" durante a instalacao)' + #13#10 +
-      #13#10 +
+      '(marque "Add Python to PATH" durante a instalacao)' + #13#10#13#10 +
       'A instalacao dos arquivos continuara normalmente.' + #13#10 +
       'Configure o Python e execute setup.ps1 antes de usar o programa.',
       mbInformation, MB_OK);
