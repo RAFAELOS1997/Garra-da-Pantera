@@ -193,24 +193,25 @@ def geodesic_click_segmentation(mesh: trimesh.Trimesh, seed_face: int, sensitivi
     order = np.argsort(distances[face_ids])
     face_ids = face_ids[order]
     sorted_d = distances[face_ids]
-    if len(sorted_d) < 3:
+    if len(sorted_d) < 12:
         mask[face_ids] = True
         return mask
-    # Quantile-binned elbow: raw consecutive-gap search is noisy on irregular
-    # triangulations (two adjacent faces can differ enough to look like a
-    # seam). Averaging distances within equal-count bins first smooths that
-    # out before picking the largest jump between neighboring bins.
-    bins = min(60, max(len(sorted_d) // 5, 3))
-    edges_idx = np.linspace(0, len(sorted_d), bins + 1).astype(int)
-    bin_means = np.array([sorted_d[edges_idx[i]:edges_idx[i + 1]].mean() for i in range(bins)])
-    gaps = np.diff(bin_means)
-    lo = max(int(bins * 0.05), 1)
-    hi = min(bins - 1, int(bins * 0.97))
-    if hi <= lo:
-        cut = len(sorted_d)
-    else:
-        best = lo + int(np.argmax(gaps[lo:hi]))
-        cut = int(edges_idx[best + 1])
+    # Elbow/watershed cut: a genuine seam is a jump far larger than the
+    # typical same-surface step, so gaps are normalized against the median
+    # step rather than a fixed distance or a percentage of the face count —
+    # both broke on meshes with different triangle density (a percentage
+    # cutoff, in particular, can sit past the true seam on a finely
+    # subdivided mesh). The first few steps are skipped: with only a couple
+    # of faces reached so far, there is no reliable "same region" baseline
+    # to compare against yet.
+    gaps = np.diff(sorted_d)
+    positive_gaps = gaps[gaps > 1e-9]
+    typical_step = float(np.median(positive_gaps)) if len(positive_gaps) else 1.0
+    normalized_gaps = gaps / max(typical_step, 1e-9)
+    lo = min(10, len(normalized_gaps) - 2)
+    hi = max(len(normalized_gaps) - 1, lo + 1)
+    best = lo + int(np.argmax(normalized_gaps[lo:hi]))
+    cut = best + 1
     mask[face_ids[:cut]] = True
     return mask
 
