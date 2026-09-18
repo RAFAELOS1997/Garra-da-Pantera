@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Garra da Pantera</title>
+  <style>
+    :root {
+      --preto: #0a0a0a;
+      --roxo: #7c3aed;
+      --roxo-claro: #a78bfa;
+      --branco: #f8f8f8;
+      --cinza: #1e1e2e;
+      --cinza2: #2a2a3e;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--preto);
+      color: var(--branco);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    header {
+      width: 100%;
+      background: rgba(10,10,10,0.9);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid #222;
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    header .logo {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--roxo-claro);
+      letter-spacing: -0.5px;
+    }
+    header .logo span { color: var(--branco); }
+    .hero {
+      max-width: 900px;
+      width: 100%;
+      padding: 5rem 2rem 3rem;
+      text-align: center;
+    }
+    .hero h1 {
+      font-size: clamp(2rem, 6vw, 3.5rem);
+      font-weight: 800;
+      line-height: 1.1;
+      margin-bottom: 1.25rem;
+    }
+    .hero h1 .destaque { color: var(--roxo-claro); }
+    .hero p {
+      font-size: 1.15rem;
+      color: #aaa;
+      max-width: 600px;
+      margin: 0 auto 2.5rem;
+      line-height: 1.7;
+    }
+    .btn-download {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      background: var(--roxo);
+      color: #fff;
+      font-size: 1.1rem;
+      font-weight: 600;
+      padding: 0.9rem 2.2rem;
+      border-radius: 10px;
+      text-decoration: none;
+      transition: background 0.2s, transform 0.15s;
+      border: none;
+      cursor: pointer;
+    }
+    .btn-download:hover { background: #6d28d9; transform: translateY(-2px); }
+    .btn-download:disabled { background: #444; cursor: not-allowed; transform: none; }
+    .versao-info {
+      margin-top: 0.75rem;
+      font-size: 0.88rem;
+      color: #666;
+    }
+    .features {
+      max-width: 900px;
+      width: 100%;
+      padding: 3rem 2rem 5rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.5rem;
+    }
+    .card {
+      background: var(--cinza);
+      border: 1px solid #2a2a3e;
+      border-radius: 14px;
+      padding: 1.75rem;
+    }
+    .card .icone { font-size: 2rem; margin-bottom: 0.75rem; }
+    .card h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .card p { font-size: 0.9rem; color: #888; line-height: 1.6; }
+    footer {
+      width: 100%;
+      text-align: center;
+      padding: 1.5rem;
+      border-top: 1px solid #1a1a1a;
+      color: #444;
+      font-size: 0.82rem;
+    }
+    footer a { color: #555; text-decoration: none; }
+    footer a:hover { color: var(--roxo-claro); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">Garra <span>da Pantera</span></div>
+  </header>
+
+  <section class="hero">
+    <h1>Corte malhas 3D com<br><span class="destaque">precisao cirurgica</span></h1>
+    <p>
+      Software desktop com IA local para segmentacao e corte de modelos STL, OBJ e PLY.
+      Sem internet, sem nuvem — tudo roda na sua maquina.
+    </p>
+    <a href="#" id="btn-download" class="btn-download" disabled>
+      &#8595; Carregando...
+    </a>
+    <div class="versao-info" id="versao-info"></div>
+  </section>
+
+  <section class="features">
+    <div class="card">
+      <div class="icone">🧠</div>
+      <h3>IA Local</h3>
+      <p>SegFormer + CLIPSeg rodam inteiramente no seu computador. Seus arquivos nunca saem da maquina.</p>
+    </div>
+    <div class="card">
+      <div class="icone">✂️</div>
+      <h3>Corte Preciso</h3>
+      <p>Selecione regioes por texto ou ponto de clique e obtenha cortes suaves prontos para impressao.</p>
+    </div>
+    <div class="card">
+      <div class="icone">🔄</div>
+      <h3>Atualizacao Automatica</h3>
+      <p>O programa verifica novas versoes ao iniciar e se atualiza sozinho, sem reinstalacao manual.</p>
+    </div>
+    <div class="card">
+      <div class="icone">📦</div>
+      <h3>Formatos Suportados</h3>
+      <p>Importa STL, OBJ e PLY. Exporta malhas validadas, watertight e prontas para o slicer.</p>
+    </div>
+  </section>
+
+  <footer>
+    <p>
+      Garra da Pantera &copy; 2024 &middot;
+      <a href="https://github.com/RAFAELOS1997/Garra-da-Pantera" target="_blank">GitHub</a>
+    </p>
+  </footer>
+
+  <script>
+    (async function () {
+      const btn = document.getElementById('btn-download');
+      const info = document.getElementById('versao-info');
+      try {
+        const res = await fetch('https://api.github.com/repos/RAFAELOS1997/Garra-da-Pantera/releases/latest');
+        if (!res.ok) throw new Error('status ' + res.status);
+        const data = await res.json();
+        const tag = data.tag_name || '';
+        const asset = (data.assets || []).find(a => a.name.endsWith('.zip'));
+        if (asset) {
+          btn.href = asset.browser_download_url;
+          btn.textContent = '\u2b07 Baixar ' + tag + ' (.zip)';
+          btn.removeAttribute('disabled');
+          const mb = (asset.size / 1024 / 1024).toFixed(1);
+          info.textContent = tag + ' • ' + mb + ' MB • Windows x64';
+        } else {
+          btn.href = data.html_url || '#';
+          btn.textContent = '\u2b07 Ver release ' + tag;
+          btn.removeAttribute('disabled');
+        }
+      } catch (e) {
+        btn.href = 'https://github.com/RAFAELOS1997/Garra-da-Pantera/releases/latest';
+        btn.textContent = '\u2b07 Baixar ultima versao';
+        btn.removeAttribute('disabled');
+        info.textContent = 'Acesse o GitHub para o link direto';
+      }
+    })();
+  </script>
+</body>
+</html>
