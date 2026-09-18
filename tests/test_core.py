@@ -37,6 +37,17 @@ class CoreTests(unittest.TestCase):
         self.assertTrue(hs.mesh_report(fixed)["watertight"])
         self.assertEqual(metadata["method"], "voxel_reconstruction")
 
+    def test_voxel_repair_handles_degenerate_flat_mesh_without_crashing(self):
+        # A single near-flat patch (no real volume) previously made marching
+        # cubes raise "Surface level must be within volume data range",
+        # which escaped export() uncaught and skipped writing the JSON
+        # report that AGENTS.md requires even for a failed repair.
+        flat = trimesh.Trimesh(vertices=[[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]],
+                                faces=[[0, 1, 2], [0, 2, 3]], process=False)
+        fixed, metadata = hs.voxel_repair(flat, target_resolution=60)
+        self.assertEqual(metadata["method"], "voxel_reconstruction_failed")
+        self.assertFalse(hs.report_is_valid(hs.mesh_report(fixed)))
+
     def test_seeded_graph_cut_respects_hard_labels(self):
         mesh = trimesh.creation.icosphere(subdivisions=1)
         app = object.__new__(hs.GarraDaPantera)

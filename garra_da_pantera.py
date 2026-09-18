@@ -359,15 +359,35 @@ def generate_connectors(target_mesh: trimesh.Trimesh, remainder_mesh: trimesh.Tr
 
 
 def voxel_repair(mesh: trimesh.Trimesh, target_resolution=340) -> tuple[trimesh.Trimesh, dict]:
-    """Last-resort local reconstruction. It is watertight but can soften detail."""
+    """Last-resort local reconstruction. It is watertight but can soften detail.
+
+    A piece that is paper-thin or otherwise has no real volume (e.g. a single
+    near-flat patch) voxelizes into an all-empty or all-solid grid, which has
+    no zero-crossing for marching cubes to extract and previously raised an
+    uncaught exception straight out of export(), skipping the JSON report the
+    rest of the repair cascade always writes (AGENTS.md: "a failed repair
+    produces a useful JSON report and no final STL"). That case is now
+    reported as a failed reconstruction instead of crashing, so the normal
+    validation/report path in export() still runs and blocks the STL.
+    """
     longest = float(max(mesh.extents))
     pitch = max(longest / float(target_resolution), 0.06)
-    voxel = mesh.voxelized(pitch)
-    matrix = binary_closing(voxel.matrix, iterations=1)
-    matrix = binary_fill_holes(matrix)
-    grid = trimesh.voxel.VoxelGrid(matrix, transform=voxel.transform)
-    rebuilt = grid.marching_cubes
-    rebuilt.apply_transform(grid.transform)
+    try:
+        voxel = mesh.voxelized(pitch)
+        matrix = binary_closing(voxel.matrix, iterations=1)
+        matrix = binary_fill_holes(matrix)
+        if not matrix.any() or matrix.all():
+            raise ValueError("a peça não tem espessura suficiente para formar um volume voxelizado")
+        grid = trimesh.voxel.VoxelGrid(matrix, transform=voxel.transform)
+        rebuilt = grid.marching_cubes
+        rebuilt.apply_transform(grid.transform)
+    except Exception as exc:
+        return mesh, {
+            "method": "voxel_reconstruction_failed",
+            "pitch_mm": float(pitch),
+            "warning": f"Reconstrução volumétrica falhou ({exc}); a peça provavelmente é fina ou degenerada "
+                       "demais para ter volume. A exportação será bloqueada pela validação normal."
+        }
     rebuilt.update_faces(rebuilt.nondegenerate_faces())
     rebuilt.update_faces(rebuilt.unique_faces())
     rebuilt.remove_unreferenced_vertices()
