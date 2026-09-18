@@ -20,7 +20,7 @@ jobs:
           username: ${{ secrets.FTP_USER }}
           password: ${{ secrets.FTP_PASS }}
           local-dir: pagina/
-          server-dir: /domains/garra.tocadapantera.com.br/public_html/
+          server-dir: /public_html/
           exclude: |
             **/.git*
             **/.git*/**
