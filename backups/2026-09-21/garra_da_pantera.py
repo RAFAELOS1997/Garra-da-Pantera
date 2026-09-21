@@ -223,42 +223,6 @@ def report_is_valid(report: dict) -> bool:
             and report["degenerate_faces"] == 0)
 
 
-def semantic_evidence_audit(selection, positive, protected, min_each: int = 3) -> dict:
-    """Check a face selection against local, explicitly labeled face evidence.
-
-    This is an evidence-consistency gate, not an independent semantic classifier:
-    the positive/protected labels come from the user's brush or a projected local
-    image mask. An image-space mask must never be compared directly to face IDs.
-    """
-    selection = np.asarray(selection, dtype=bool).reshape(-1)
-    positive = np.asarray(positive, dtype=bool).reshape(-1)
-    protected = np.asarray(protected, dtype=bool).reshape(-1)
-    if not (len(selection) == len(positive) == len(protected)):
-        return {"passed": False, "reason": "face_count_mismatch", "positive_faces": int(positive.sum()),
-                "protected_faces": int(protected.sum()), "positive_recall": 0.0, "protected_leak": 1.0}
-    overlap = positive & protected
-    positive_count = int(positive.sum())
-    protected_count = int(protected.sum())
-    selected_positive = int(np.count_nonzero(selection & positive))
-    selected_protected = int(np.count_nonzero(selection & protected))
-    positive_recall = selected_positive / max(positive_count, 1)
-    protected_leak = selected_protected / max(protected_count, 1)
-    passed = (positive_count >= min_each and protected_count >= min_each and not overlap.any()
-              and positive_recall >= 0.98 and protected_leak <= 0.02)
-    if positive_count < min_each or protected_count < min_each:
-        reason = "insufficient_labeled_faces"
-    elif overlap.any():
-        reason = "conflicting_labels"
-    elif positive_recall < 0.98 or protected_leak > 0.02:
-        reason = "selection_conflicts_with_labels"
-    else:
-        reason = "passed"
-    return {"passed": bool(passed), "reason": reason, "positive_faces": positive_count,
-            "protected_faces": protected_count, "conflicting_faces": int(overlap.sum()),
-            "selected_positive_faces": selected_positive, "selected_protected_faces": selected_protected,
-            "positive_recall": float(positive_recall), "protected_leak": float(protected_leak)}
-
-
 def conservative_repair(mesh: trimesh.Trimesh) -> tuple[trimesh.Trimesh, list[str]]:
     result = mesh.copy()
     log = []
@@ -1307,21 +1271,23 @@ class GarraDaPantera:
         if self.mesh is None or not self.selection.any() or self.selection.all():
             messagebox.showwarning("Seleção incompleta", "Selecione o alvo e preserve ao menos uma parte restante antes de exportar.")
             return
-        # Audit face-space evidence only. reference_target_mask is 2D image
-        # space and cannot be compared element-by-element with face selection.
-        self.semantic_audit = semantic_evidence_audit(
-            self.selection, self.ai_positive, self.ai_negative)
-        if not self.semantic_audit["passed"]:
-            audit = self.semantic_audit
-            self.status.set("Auditoria de evidências reprovada: complete/corrija os rótulos por face.")
-            messagebox.showwarning("Auditoria de evidências reprovada",
-                "A seleção não pode ser exportada ainda. Marque pelo menos 3 faces como alvo e 3 como proteção; "
-                "a seleção deve incluir os rótulos positivos e excluir os protegidos.\n\n"
-                f"Motivo: {audit['reason']}\n"
-                f"Faces-alvo: {audit['positive_faces']} (cobertura {audit['positive_recall']:.1%})\n"
-                f"Faces protegidas: {audit['protected_faces']} (vazamento {audit['protected_leak']:.1%})\n"
-                "Isso confere consistência com as marcações, mas não substitui a revisão visual semântica.")
-            return
+        # Semantic audit gate: when an AI/reference mask exists, reject a cut
+        # that does not agree with it. Topological validity alone cannot prove
+        # that the selected object is actually the requested target.
+        if self.reference_target_mask is not None and self.reference_target_mask.any():
+            ref = self.reference_target_mask.astype(bool)
+            sel = self.selection.astype(bool)
+            inter = int(np.count_nonzero(ref & sel))
+            precision = inter / max(int(sel.sum()), 1)
+            recall = inter / max(int(ref.sum()), 1)
+            f1 = 2 * precision * recall / max(precision + recall, 1e-9)
+            if f1 < 0.45 or precision < 0.35 or recall < 0.35:
+                self.status.set("Auditoria semântica reprovada: ajuste a máscara e tente novamente.")
+                messagebox.showwarning("Auditoria semântica reprovada",
+                    f"A seleção não coincide suficientemente com a referência de {self.target_prompt.get()}.\n\n"
+                    f"Precisão: {precision:.1%}  Cobertura: {recall:.1%}  F1: {f1:.1%}\n"
+                    "O STL não será exportado até a seleção ser corrigida.")
+                return
         folder = filedialog.askdirectory(title="Pasta de saída")
         if not folder:
             return
@@ -1396,7 +1362,6 @@ class GarraDaPantera:
             reports = {"aplicativo": "Garra da Pantera", "alvo_solicitado": self.target_prompt.get(),
                        "entrada_separada": raw_reports, "alvo": target_report, "restante": remainder_report,
                        "metricas_contorno": self.boundary_metrics(self.selection),
-                       "auditoria_evidencias_semanticas": self.semantic_audit,
                        "sensibilidade_angular_graus": float(self.curve_sensitivity.get()),
                        "repair_log": repair_log, "reconstruction": reconstruction}
             report_path = out / "validacao_separacao.json"

@@ -30,6 +30,49 @@ class CoreTests(unittest.TestCase):
         box.update_faces(np.arange(len(box.faces) - 1))
         self.assertFalse(hs.report_is_valid(hs.mesh_report(box)))
 
+    def test_semantic_evidence_audit_uses_face_labels_and_passes_consistent_selection(self):
+        selected = np.array([1, 1, 1, 0, 0, 0, 0, 0], dtype=bool)
+        positive = np.array([1, 1, 1, 0, 0, 0, 0, 0], dtype=bool)
+        protected = np.array([0, 0, 0, 1, 1, 1, 0, 0], dtype=bool)
+        result = hs.semantic_evidence_audit(selected, positive, protected)
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["reason"], "passed")
+
+    def test_semantic_evidence_audit_blocks_leaked_protected_faces(self):
+        selected = np.array([1, 1, 1, 1, 0, 0, 0, 0], dtype=bool)
+        positive = np.array([1, 1, 1, 0, 0, 0, 0, 0], dtype=bool)
+        protected = np.array([0, 0, 0, 1, 1, 1, 0, 0], dtype=bool)
+        result = hs.semantic_evidence_audit(selected, positive, protected)
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["reason"], "selection_conflicts_with_labels")
+
+    def test_semantic_evidence_audit_rejects_image_space_face_count_mismatch(self):
+        result = hs.semantic_evidence_audit(np.zeros(12), np.zeros(48), np.zeros(48))
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["reason"], "face_count_mismatch")
+
+    def test_semantic_evidence_audit_requires_positive_and_protected_examples(self):
+        result = hs.semantic_evidence_audit(np.ones(8), np.ones(8), np.zeros(8))
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["reason"], "insufficient_labeled_faces")
+
+    def test_local_reference_projection_produces_face_space_labels(self):
+        app = object.__new__(hs.GarraDaPantera)
+        app.reference_target_mask = np.array([[False, True], [False, False]])
+        app.reference_protected_mask = np.array([[False, False], [True, False]])
+        app.flip_reference = type("Value", (), {"get": lambda self: False})()
+        app.projected = lambda: (np.array([[0., 0.], [1., 0.], [0., 1.], [1., 1.]]), np.zeros(4))
+        app.visible_mask = lambda xy, depth: np.ones(4, dtype=bool)
+        app.ai_positive = np.zeros(4, dtype=bool)
+        app.ai_negative = np.zeros(4, dtype=bool)
+        app.redraw = lambda: None
+        app.status = type("Status", (), {"set": lambda self, value: None})()
+        app.project_reference_labels()
+        self.assertEqual(app.ai_positive.shape, (4,))
+        self.assertEqual(app.ai_negative.shape, (4,))
+        self.assertTrue(app.ai_positive[3])
+        self.assertTrue(app.ai_negative[0])
+
     def test_voxel_repair_is_watertight(self):
         box = trimesh.creation.box(extents=[4, 5, 6])
         box.update_faces(np.arange(len(box.faces) - 2))
