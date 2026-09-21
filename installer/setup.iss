@@ -9,7 +9,7 @@
 #define AppName      "Garra da Pantera"
 #define AppPublisher "RAFAELOS1997"
 #define AppURL       "https://github.com/RAFAELOS1997/Garra-da-Pantera"
-#define AppExe       "abrir_programa.bat"
+#define AppExe       "GarraDaPantera.exe"
 
 [Setup]
 AppId={{8F3A2B1C-4D5E-6F7A-8B9C-0D1E2F3A4B5C}
@@ -52,56 +52,12 @@ Name: "{group}\Desinstalar {#AppName}";  Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}";        Filename: "{app}\{#AppExe}"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-; Executa setup.ps1 somente se Python estiver instalado
-Filename: "powershell.exe"; \
-  Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\setup.ps1"""; \
-  WorkingDir: "{app}"; \
-  StatusMsg: "Configurando ambiente Python (pode demorar alguns minutos na primeira vez)..."; \
-  Flags: runhidden waituntilterminated; \
-  Check: PythonInstalled
-
-; Oferecer para abrir o programa apos a instalacao
+; Oferecer para abrir o programa apos a instalacao. Nao ha mais passo de
+; configuracao de Python: {app} contem a build congelada pelo PyInstaller
+; (GarraDaPantera.exe + bibliotecas), que roda sozinha.
 Filename: "{app}\{#AppExe}"; \
   Description: "Iniciar {#AppName} agora"; \
   Flags: nowait postinstall skipifsilent shellexec
 
-[UninstallDelete]
-Type: filesandordirs; Name: "{app}\.venv"
-Type: filesandordirs; Name: "{app}\__pycache__"
-Type: filesandordirs; Name: "{app}\*.pyc"
-
 [Messages]
 brazilianportuguese.WelcomeLabel2=Este assistente vai instalar o [name/ver] no seu computador.%n%nO Garra da Pantera usa IA para segmentar malhas 3D e gerar pecas imprimiveis.%n%nRecomendamos fechar todos os outros programas antes de continuar.
-
-[Code]
-// Verifica se Python 3.10+ esta instalado
-function PythonInstalled: Boolean;
-var
-  Path: String;
-begin
-  Result :=
-    RegQueryStringValue(HKLM,  'SOFTWARE\Python\PythonCore\3.12\InstallPath', '', Path) or
-    RegQueryStringValue(HKLM,  'SOFTWARE\Python\PythonCore\3.11\InstallPath', '', Path) or
-    RegQueryStringValue(HKLM,  'SOFTWARE\Python\PythonCore\3.10\InstallPath', '', Path) or
-    RegQueryStringValue(HKLM,  'SOFTWARE\WOW6432Node\Python\PythonCore\3.12\InstallPath', '', Path) or
-    RegQueryStringValue(HKLM,  'SOFTWARE\WOW6432Node\Python\PythonCore\3.11\InstallPath', '', Path) or
-    RegQueryStringValue(HKLM,  'SOFTWARE\WOW6432Node\Python\PythonCore\3.10\InstallPath', '', Path) or
-    RegQueryStringValue(HKCU,  'SOFTWARE\Python\PythonCore\3.12\InstallPath', '', Path) or
-    RegQueryStringValue(HKCU,  'SOFTWARE\Python\PythonCore\3.11\InstallPath', '', Path) or
-    RegQueryStringValue(HKCU,  'SOFTWARE\Python\PythonCore\3.10\InstallPath', '', Path);
-end;
-
-// Avisa se Python nao estiver instalado, mas permite continuar
-function InitializeSetup: Boolean;
-begin
-  Result := True;
-  if not PythonInstalled then
-    MsgBox(
-      'Python 3.10 ou superior nao foi encontrado no seu computador.' + #13#10#13#10 +
-      'O Garra da Pantera requer Python para funcionar.' + #13#10 +
-      'Baixe em: https://www.python.org/downloads/' + #13#10 +
-      '(marque "Add Python to PATH" durante a instalacao)' + #13#10#13#10 +
-      'A instalacao dos arquivos continuara normalmente.' + #13#10 +
-      'Configure o Python e execute setup.ps1 antes de usar o programa.',
-      mbInformation, MB_OK);
-end;
