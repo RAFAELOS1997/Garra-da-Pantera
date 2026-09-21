@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-09-21 — Auditoria segura da seleção
+
+- Corrigido o portão de auditoria semântica: a versão anterior comparava uma máscara 2D de imagem com uma seleção 3D por faces, causando incompatibilidade dimensional e uma métrica inválida.
+- A exportação agora confere consistência da seleção com rótulos positivos e protegidos no espaço de faces, exige exemplos dos dois tipos, rejeita conflitos e grava métricas no relatório JSON.
+- A interface deixa explícito que essa checagem é de consistência com evidências locais, não prova automática da semântica do objeto nem substitui a revisão visual em múltiplas vistas.
+- Backup pré-alteração versionado em `backups/2026-09-21/garra_da_pantera.py`.
+- Testes determinísticos cobrem seleção consistente, vazamento para faces protegidas, ausência de exemplos e mismatch entre máscaras de imagem e faces.
+- Pesquisa primária consultada: documentação do Blender Bisect (corte planar e opções de preenchimento), CGAL Polygon Mesh Processing (reparo independente), OrcaSlicer Cutting Tool, MeshLib `MRContoursCut` (contorno auto-intersectante pode invalidar a área cortada) e release oficial MeshLib v3.1.3.429. Nenhum código incompatível foi copiado.
+
 ## 2.3.2 - 2026-09-18
 
 - Pinned installation and fallback launch to Python 3.12 because PyMaxflow has no Python 3.14 wheel.

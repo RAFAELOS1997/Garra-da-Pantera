@@ -1,5 +1,17 @@
 # Pesquisa comparativa e decisões do programa
 
+## Revisão diária — 2026-09-21
+
+Fontes primárias consultadas nesta revisão:
+
+- Blender 5.2 LTS, [Bisect](https://docs.blender.org/manual/en/latest/modeling/meshes/editing/mesh/bisect.html): um corte planar é definido por plano, com opção explícita de preencher. Isso confirma que o corte planar não resolve semântica de peças arbitrárias.
+- CGAL 6.2.1, [Polygon Mesh Processing](https://doc.cgal.org/latest/Polygon_mesh_processing/): separa reparo de malha, operações booleanas e remalhamento em tarefas distintas; portanto, watertight é um teste geométrico, não semântico.
+- OrcaSlicer, [Cutting Tool](https://github.com/OrcaSlicer/OrcaSlicer/wiki/prepare_cutting_tool): ferramenta de corte prepara modelos para impressão e montagem, sem alegar reconhecer objetos arbitrários por significado.
+- MeshLib, [MRContoursCut.h](https://github.com/MeshInspector/MeshLib/blob/master/source/MRMesh/MRContoursCut.h) e [release v3.1.3.429](https://github.com/MeshInspector/MeshLib/releases): contornos auto-intersectantes geram faces problemáticas; a separação do lado do contorno pode usar graph cut. Adotamos a lição de falha e validação, sem copiar implementação.
+- O repositório oficial [MeshLib](https://github.com/MeshInspector/MeshLib) fornece SDK de geometria e reparo; foi inspecionado apenas como referência. Licença/compatibilidade não justifica incorporar código nesta mudança.
+
+Decisão: corrigir o gate de exportação para comparar vetores por face (`selection`, `ai_positive`, `ai_negative`), nunca comparar diretamente uma máscara de pixels com faces. O gate exige marcações positivas e protegidas suficientes, todas respeitadas, e registra cobertura/vazamento no relatório. Isso mede consistência com evidência anotada localmente; **não** é reconhecimento semântico independente e não prova que o alvo é cabelo, roupa ou outra classe. O programa ainda não rastreia orientação/câmera nem garante consenso entre múltiplas vistas. A exportação deve continuar comunicando essa limitação em vez de apresentar a pontuação como aprovação semântica.
+
 Esta versão não replica somente o Nativos3D. Ela combina ideias documentadas por ferramentas de edição e preparação para impressão:
 
 - O Blender oferece seleção por laço, separação da seleção e separação por partes soltas. Isso orientou a revisão manual em várias vistas e a separação explícita das faces.
