@@ -25,6 +25,35 @@ class CoreTests(unittest.TestCase):
         self.assertTrue(report["watertight"])
         self.assertEqual(report["boundary_edges"], 0)
 
+    def test_cap_rejects_self_intersecting_boundary_without_mutating_mesh(self):
+        # A planar bow-tie boundary has zero signed area and cannot be safely
+        # filled by an unconstrained polygon triangulator.
+        vertices = [[0, 0, 0], [2, 2, 0], [0, 2, 0], [2, 0, 0], [1, 1, 1]]
+        faces = [[0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4]]
+        mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+        before_faces = mesh.faces.copy()
+        capped, warnings = hs.cap_mesh(mesh)
+        self.assertTrue(any("auto-intersectante" in warning for warning in warnings))
+        self.assertTrue(np.array_equal(capped.faces, before_faces))
+        self.assertGreater(hs.mesh_report(capped)["boundary_edges"], 0)
+
+    def test_cap_rejects_crossing_projected_boundary_loops_atomically(self):
+        # Two separate boundary rings share the same planar projection at
+        # different heights. Filling both would create overlapping cap faces.
+        angle = np.linspace(0, 2 * np.pi, 12, endpoint=False)
+        outer = np.stack([3 * np.cos(angle), 3 * np.sin(angle), np.zeros_like(angle)], axis=1)
+        inner = np.stack([1.5 * np.cos(angle), 1.5 * np.sin(angle), np.ones_like(angle)], axis=1)
+        vertices = np.vstack([outer, inner, [[0, 0, 2], [0, 0, -1]]])
+        faces = []
+        for i in range(len(angle)):
+            j = (i + 1) % len(angle)
+            faces.extend([[i, j, 24], [12 + i, 25, 12 + j]])
+        mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+        before_faces = mesh.faces.copy()
+        capped, warnings = hs.cap_mesh(mesh)
+        self.assertTrue(any("se cruzam ou se sobrepõem" in warning for warning in warnings))
+        self.assertTrue(np.array_equal(capped.faces, before_faces))
+
     def test_validation_rejects_open_mesh(self):
         box = trimesh.creation.box()
         box.update_faces(np.arange(len(box.faces) - 1))

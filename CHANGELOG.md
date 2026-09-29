@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-09-29 — Recusa de contornos ambíguos no fechamento
+
+- O fechamento conservador agora verifica se cada borda projetada é um polígono simples e se os contornos candidatos não se cruzam nem se sobrepõem antes de triangular.
+- Em geometrias ambíguas, o fechamento é atômico: mantém a malha original daquele reparo, registra o motivo e deixa a validação bloquear a exportação ou outro estágio de reparo tratar o caso.
+- Testes determinísticos cobrem o fechamento planar válido, contorno degenerado/auto-intersectante e loops projetados que se cruzam, garantindo que o último não feche parcialmente a malha.
+- Backup anterior preservado em `backups/2026-09-29/garra_da_pantera.py`.
+- Motivação técnica: [MeshLib v3.1.4.297](https://github.com/MeshInspector/MeshLib/releases/tag/v3.1.4.297) documenta proteção contra contornos inválidos em `addPartByMask` e correções de triangulação planar para pontos colineares/coincidentes. Aplicamos apenas o princípio de validar e recusar; nenhuma implementação externa foi copiada.
+- Limitação: a checagem conservadora pode recusar loops distintos que se projetem coincidentemente em casos em que um operador especializado poderia tratar a relação de furos. Não declara a malha global livre de auto-interseções.
+
 ## 2026-09-21 — Auditoria segura da seleção
 
 - Corrigido o portão de auditoria semântica: a versão anterior comparava uma máscara 2D de imagem com uma seleção 3D por faces, causando incompatibilidade dimensional e uma métrica inválida.

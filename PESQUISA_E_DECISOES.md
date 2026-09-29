@@ -1,5 +1,18 @@
 # Pesquisa comparativa e decisões do programa
 
+## Revisão diária — 2026-09-29
+
+Fontes primárias consultadas:
+
+- MeshLib, [release v3.1.4.297](https://github.com/MeshInspector/MeshLib/releases/tag/v3.1.4.297): correções para triangulação planar com pontos colineares/coincidentes e rejeição de contornos inválidos em `addPartByMask`; a release também traz operações de preenchimento de buracos no espaço da malha.
+- CGAL 6.2.1, [Polygon Mesh Processing](https://doc.cgal.org/latest/Polygon_mesh_processing/): referência atual para separar triangulação, reparo e validação de malhas.
+- [PrusaSlicer Cut Tool](https://help.prusa3d.com/article/cut-tool_1779), [Bambu Studio releases](https://github.com/bambulab/BambuStudio/releases) e [OrcaSlicer release index](https://github.com/OrcaSlicer/OrcaSlicer/wiki/releases_index): interfaces e notas de versões consultadas; nenhuma mudança identificada nesta revisão oferece reconhecimento semântico ou consenso de câmera que possa ser integrada isoladamente sem ampliar dependências/escopo.
+- [libigl](https://github.com/libigl/libigl): biblioteca de geometria consultada para evolução de ferramentas geodésicas; não há motivo nesta revisão para adicionar dependência nativa a esta correção de reparo.
+
+Decisão: a triangulação em `cap_mesh` recebia cada ciclo de borda de forma independente, após projeção PCA, sem testar simplicidade 2D nem relações entre loops. Um laço em forma de gravata borboleta ou projeções sobrepostas pode fazer trianguladores poligonais criarem faces ambíguas e gerar defeitos topológicos. Antes de chamar Earcut, agora rejeitamos segmentos que cruzem ou toquem fora de vértices adjacentes, área/arestas degeneradas e loops que cruzem, contenham ou se sobreponham na projeção. A operação é atômica: se algum contorno for ambíguo, nenhum cap é aplicado; warnings existentes seguem para relatório e os gates topológicos permanecem ativos. Testes sintéticos demonstram aceitação do patch planar válido e recusa sem mutação para os casos ambíguos.
+
+Limitação: a estratégia é deliberadamente conservadora e pode rejeitar loops separados que um algoritmo com hierarquia de furos poderia triangular corretamente. Não detecta auto-interseção arbitrária da superfície inteira. A melhoria toma a regra de segurança observada no MeshLib como motivação, sem copiar código. Backup prévio: `backups/2026-09-29/garra_da_pantera.py`.
+
 ## Revisão diária — 2026-09-21
 
 Fontes primárias consultadas nesta revisão:
