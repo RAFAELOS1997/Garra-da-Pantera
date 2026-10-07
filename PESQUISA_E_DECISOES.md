@@ -1,5 +1,18 @@
 # Pesquisa comparativa e decisões do programa
 
+## Revisão diária — 2026-10-07
+
+Fontes primárias consultadas:
+
+- [MeshLib releases](https://github.com/MeshInspector/MeshLib/releases): continua na versão v3.1.4.297; sem release nova desde a revisão anterior.
+- [Bambu Studio v2.8.4 Public Beta](https://github.com/bambulab/BambuStudio/releases/tag/v02.08.04.57): publicada em 22 de setembro; registra operação Cut mais fluida, junto com melhorias gerais de interação e desempenho.
+- [OrcaSlicer releases](https://github.com/OrcaSlicer/OrcaSlicer/releases): v2.4.2 permanece como release oficial mais recente na listagem consultada.
+- [MeshLab oficial](https://github.com/cnr-isti-vclab/meshlab): o projeto principal segue na linha 2025.07; o rewrite MeshLab 2 continua sem release marcada e em desenvolvimento ativo.
+
+Auditoria da mudança de 29 de setembro encontrou regressão de desempenho: `_simple_polygon_2d` comparava O(n²) pares mesmo quando um contorno era simples. Medida local reproduzível no mesmo processo: círculo sintético com 1.000 vértices levava 3,016 s; após a alteração passou a 0,034 s. Com 3.000 vértices, validação levou 0,117 s. A validação agora distribui caixas delimitadoras de segmentos numa grade; caixas que se intersectam compartilham célula, logo a poda não omite pares potencialmente cruzados. Limites para quantidade de inserções e pares tornam o custo limitado; exceder o limite resulta em recusa conservadora, nunca em aprovação incompleta. Casos existentes de auto-interseção e loops sobrepostos continuam testados.
+
+Não houve atualização do MeshLib ou dos slicers que justifique adotar código/dependência. A melhoria corrige o custo da própria proteção geométrica da Garra e é compatível com o fluxo local e com a licença MIT; a referência do Bambu serve apenas como sinal público de prioridade em fluidez de corte, não como origem do algoritmo.
+
 ## Revisão diária — 2026-09-29
 
 Fontes primárias consultadas:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import sys
 import traceback
@@ -121,6 +122,69 @@ def _segments_intersect_2d(a, b, c, d, epsilon: float) -> bool:
             or (abs(o4) <= epsilon and on_segment(c, b, d)))
 
 
+def _has_polygon_edge_intersection(polygons: list[np.ndarray]) -> bool | None:
+    """Spatially prune edge pairs; None means the safety budget was exceeded."""
+    segments = []
+    for polygon_id, points in enumerate(polygons):
+        for edge_id in range(len(points)):
+            segments.append((polygon_id, edge_id, points[edge_id], points[(edge_id + 1) % len(points)]))
+    count = len(segments)
+    if count < 2:
+        return False
+    all_points = np.vstack(polygons)
+    low = all_points.min(axis=0)
+    span_xy = np.ptp(all_points, axis=0)
+    scale = max(float(np.linalg.norm(span_xy)), 1e-12)
+    length_epsilon = scale * 1e-12
+    area_epsilon = scale * scale * 1e-12
+    bins = max(8, min(512, int(math.sqrt(count) * 2)))
+    cell_size = np.maximum(span_xy / bins, scale * 1e-12)
+    buckets: dict[tuple[int, int], list[int]] = {}
+    entries = 0
+    # Bounding-box rasterization is conservative: intersecting segment boxes
+    # must share at least one bucket. Cap work on pathological long contours.
+    entry_limit = max(4096, count * 32)
+    for segment_index, (_, _, a, b) in enumerate(segments):
+        lo = np.floor((np.minimum(a, b) - low - length_epsilon) / cell_size).astype(int)
+        hi = np.floor((np.maximum(a, b) - low + length_epsilon) / cell_size).astype(int)
+        lo = np.clip(lo, 0, bins - 1)
+        hi = np.clip(hi, 0, bins - 1)
+        cells = int((hi[0] - lo[0] + 1) * (hi[1] - lo[1] + 1))
+        entries += cells
+        if entries > entry_limit:
+            return None
+        for gx in range(lo[0], hi[0] + 1):
+            for gy in range(lo[1], hi[1] + 1):
+                buckets.setdefault((gx, gy), []).append(segment_index)
+
+    seen: set[tuple[int, int]] = set()
+    pair_budget = max(100_000, count * 256)
+    pair_count = 0
+    for bucket in buckets.values():
+        for offset, first_index in enumerate(bucket):
+            p_id, e_id, a, b = segments[first_index]
+            for second_index in bucket[offset + 1:]:
+                q_id, f_id, c, d = segments[second_index]
+                if p_id == q_id:
+                    edge_count = len(polygons[p_id])
+                    if (f_id == e_id or f_id == (e_id + 1) % edge_count
+                            or e_id == (f_id + 1) % edge_count):
+                        continue
+                key = (min(first_index, second_index), max(first_index, second_index))
+                if key in seen:
+                    continue
+                seen.add(key)
+                pair_count += 1
+                if pair_count > pair_budget:
+                    return None
+                if (max(min(a[0], b[0]), min(c[0], d[0])) > min(max(a[0], b[0]), max(c[0], d[0])) + length_epsilon
+                        or max(min(a[1], b[1]), min(c[1], d[1])) > min(max(a[1], b[1]), max(c[1], d[1])) + length_epsilon):
+                    continue
+                if _segments_intersect_2d(a, b, c, d, area_epsilon):
+                    return True
+    return False
+
+
 def _simple_polygon_2d(points: np.ndarray) -> bool:
     """Reject degenerate or self-touching projected contours before triangulation."""
     points = np.asarray(points, dtype=float)
@@ -139,14 +203,10 @@ def _simple_polygon_2d(points: np.ndarray) -> bool:
         a, b = points[i], points[(i + 1) % n]
         if float(np.linalg.norm(b - a)) <= span * 1e-12:
             return False
-        for j in range(i + 1, n):
-            # Consecutive edges share a legitimate endpoint; all other touches
-            # are ambiguous and can make earcut emit overlapping faces.
-            if j == i or j == (i + 1) % n or (j + 1) % n == i:
-                continue
-            if _segments_intersect_2d(a, b, points[j], points[(j + 1) % n], epsilon):
-                return False
-    return True
+    # Consecutive edges share a legitimate endpoint; all other touches are
+    # ambiguous and can make earcut emit overlapping faces. An incomplete
+    # broad-phase check is treated as unsafe, never as a pass.
+    return _has_polygon_edge_intersection([points]) is False
 
 
 def cap_mesh(mesh: trimesh.Trimesh) -> tuple[trimesh.Trimesh, list[str]]:
@@ -172,7 +232,7 @@ def cap_mesh(mesh: trimesh.Trimesh) -> tuple[trimesh.Trimesh, list[str]]:
             warnings.append(f"Contorno com {len(loop)} vértices é muito não-planar ({planarity:.3f}).")
             continue
         if not _simple_polygon_2d(projected):
-            warnings.append(f"Contorno com {len(loop)} vértices é degenerado ou auto-intersectante; fechamento cancelado.")
+            warnings.append(f"Contorno com {len(loop)} vértices é degenerado, auto-intersectante ou excede o limite seguro de validação; fechamento cancelado.")
             return result, warnings
         if any(_projected_loops_overlap(projected, other) for other in projected_loops):
             warnings.append("Contornos projetados se cruzam ou se sobrepõem; fechamento automático cancelado.")
@@ -199,13 +259,8 @@ def _projected_loops_overlap(first: np.ndarray, second: np.ndarray) -> bool:
     """Conservatively reject intersecting or nested hole projections."""
     if not _simple_polygon_2d(first) or not _simple_polygon_2d(second):
         return True
-    scale = max(float(np.linalg.norm(np.ptp(np.vstack([first, second]), axis=0))), 1e-12)
-    epsilon = scale * scale * 1e-12
-    for i in range(len(first)):
-        for j in range(len(second)):
-            if _segments_intersect_2d(first[i], first[(i + 1) % len(first)],
-                                      second[j], second[(j + 1) % len(second)], epsilon):
-                return True
+    if _has_polygon_edge_intersection([first, second]) is not False:
+        return True
     def inside(point, polygon):
         x, y = point
         result = False

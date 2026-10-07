@@ -37,6 +37,11 @@ class CoreTests(unittest.TestCase):
         self.assertTrue(np.array_equal(capped.faces, before_faces))
         self.assertGreater(hs.mesh_report(capped)["boundary_edges"], 0)
 
+    def test_simple_polygon_validation_scales_to_dense_boundary(self):
+        angles = np.arange(3000) * (2 * np.pi / 3000)
+        dense_loop = np.column_stack([np.cos(angles), np.sin(angles)])
+        self.assertTrue(hs._simple_polygon_2d(dense_loop))
+
     def test_cap_rejects_crossing_projected_boundary_loops_atomically(self):
         # Two separate boundary rings share the same planar projection at
         # different heights. Filling both would create overlapping cap faces.

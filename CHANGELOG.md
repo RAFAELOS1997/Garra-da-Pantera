@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-07 — Validação de contorno escalável
+
+- A checagem de auto-interseção do fechamento deixou de comparar cada aresta com todas as demais. Uma grade espacial conservadora reduz os pares candidatos e limita explicitamente o trabalho em contornos patológicos.
+- Se a grade exceder seu orçamento, o fechamento é recusado: uma busca incompleta nunca aprova o contorno.
+- Um loop circular sintético de 1.000 vértices passou de 3,016 s para 0,034 s na mesma máquina; 3.000 vértices validaram em 0,117 s. Teste determinístico cobre o caso denso sem depender de limite temporal.
+- Backup pré-alteração: `backups/2026-10-07/garra_da_pantera.py`.
+- Contexto de produto: as notas oficiais do [Bambu Studio 2.8.4 Beta](https://github.com/bambulab/BambuStudio/releases/tag/v02.08.04.57) destacam uma operação Cut mais fluida. A mudança local aqui resolve o custo quadrático introduzido pela própria validação da Garra; não copia código e não altera as outras ferramentas.
+- Limitação: contornos muito patológicos podem ser recusados e seguir para outro estágio de reparo, mesmo se forem geometricamente simples; nenhum dado do modelo é enviado.
+
 ## 2026-09-29 — Recusa de contornos ambíguos no fechamento
 
 - O fechamento conservador agora verifica se cada borda projetada é um polígono simples e se os contornos candidatos não se cruzam nem se sobrepõem antes de triangular.
