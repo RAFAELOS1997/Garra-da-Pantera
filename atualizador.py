@@ -17,7 +17,22 @@ from pathlib import Path
 
 REPO = "RAFAELOS1997/Garra-da-Pantera"
 API_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
-VERSAO_FILE = Path(__file__).parent / "VERSAO.txt"
+
+
+def _pasta_app() -> Path:
+    """Pasta raiz da instalacao (onde ficam VERSAO.txt e os arquivos do programa).
+
+    Quando congelado pelo PyInstaller, `__file__` deste modulo nao aponta
+    para um caminho real em disco -- o modulo vive empacotado dentro do
+    proprio executavel -- entao a pasta correta e a que contem o executavel
+    (`sys.executable`), nao `Path(__file__).parent`.
+    """
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent.resolve()
+    return Path(__file__).parent.resolve()
+
+
+VERSAO_FILE = _pasta_app() / "VERSAO.txt"
 
 
 def _versao_local() -> str:
@@ -29,7 +44,14 @@ def _versao_local() -> str:
 
 
 def _versao_remota(api_url: str = API_URL):
-    """Retorna (tag, url_do_zip, url_do_checksum) da release mais recente no GitHub."""
+    """Retorna (tag, url_do_zip, url_do_checksum) da release mais recente no GitHub.
+
+    Uma release publica tres ZIPs: codigo-fonte (`*.zip`), build congelada
+    (`*-exe.zip`) e o instalador (`*-Installer.exe`, ignorado aqui pois nao
+    e um ZIP). Uma instalacao congelada (`sys.frozen`) so aceita o asset
+    `-exe.zip`; uma instalacao por codigo-fonte so aceita o `.zip` comum --
+    nunca aplica o pacote do outro modo.
+    """
     req = urllib.request.Request(
         api_url, headers={"User-Agent": "GarraDaPantera-Updater"}
     )
@@ -37,24 +59,27 @@ def _versao_remota(api_url: str = API_URL):
         data = json.loads(resp.read())
 
     tag = data["tag_name"].lstrip("v")
-    zip_url = None
-    checksum_url = None
-    for asset in data.get("assets", []):
-        name = asset["name"]
-        if name.endswith(".zip"):
-            zip_url = asset["browser_download_url"]
-        elif name.endswith(".zip.sha256"):
-            checksum_url = asset["browser_download_url"]
+    assets = {asset["name"]: asset["browser_download_url"] for asset in data.get("assets", [])}
 
-    if not zip_url:
-        raise RuntimeError("Nenhum arquivo ZIP encontrado na release.")
-    if not checksum_url:
+    frozen = getattr(sys, "frozen", False)
+    if frozen:
+        candidatos = [nome for nome in assets if nome.endswith("-exe.zip")]
+        descricao = "congelada (.exe)"
+    else:
+        candidatos = [nome for nome in assets if nome.endswith(".zip") and not nome.endswith("-exe.zip")]
+        descricao = "de codigo-fonte"
+    if not candidatos:
+        raise RuntimeError(f"Nenhuma release {descricao} encontrada (nenhum asset .zip compativel).")
+
+    zip_nome = candidatos[0]
+    checksum_nome = zip_nome + ".sha256"
+    if checksum_nome not in assets:
         raise RuntimeError(
-            "Nenhum arquivo .sha256 encontrado na release; a atualizacao nao pode ser "
+            f"Nenhum arquivo {checksum_nome} encontrado na release; a atualizacao nao pode ser "
             "verificada e foi cancelada por seguranca."
         )
 
-    return tag, zip_url, checksum_url
+    return tag, assets[zip_nome], assets[checksum_nome]
 
 
 def _baixar_checksum_esperado(checksum_url: str) -> str:
@@ -109,8 +134,16 @@ def _baixar_e_verificar(zip_url: str, checksum_url: str, tmp_dir: Path) -> Path:
 
 
 def _aplicar(zip_path: Path, nova_versao: str, tmp_dir: Path) -> None:
-    """Extrai o ZIP ja verificado e aplica a atualizacao via script .bat."""
-    pasta_atual = Path(__file__).parent.resolve()
+    """Extrai o ZIP ja verificado e aplica a atualizacao via script .bat.
+
+    Numa instalacao congelada, o `.bat` precisa esperar o processo atual
+    (que mantem `GarraDaPantera.exe` aberto/travado pelo Windows) terminar
+    de fato antes de conseguir sobrescreve-lo -- por isso espera o PID
+    desaparecer do `tasklist` em vez de um `timeout` fixo, que podia falhar
+    se o encerramento demorasse mais que o tempo fixo (comum com CUDA/torch
+    ainda descarregando)."""
+    pasta_atual = _pasta_app()
+    frozen = getattr(sys, "frozen", False)
 
     pasta_extraida = tmp_dir / "extraido"
     pasta_extraida.mkdir()
@@ -121,17 +154,25 @@ def _aplicar(zip_path: Path, nova_versao: str, tmp_dir: Path) -> None:
     itens = list(pasta_extraida.iterdir())
     pasta_nova = itens[0] if (len(itens) == 1 and itens[0].is_dir()) else pasta_extraida
 
-    exe_atual = sys.executable
-    script_principal = pasta_atual / "garra_da_pantera.py"
-    bat_path = tmp_dir / "aplicar_update.bat"
+    if frozen:
+        comando_relancar = f'start "" "{pasta_atual / "GarraDaPantera.exe"}"'
+    else:
+        comando_relancar = f'start "" "{sys.executable}" "{pasta_atual / "garra_da_pantera.py"}"'
 
+    pid = os.getpid()
+    bat_path = tmp_dir / "aplicar_update.bat"
     linhas = [
         "@echo off",
         f"echo Aplicando atualizacao {nova_versao}...",
-        "timeout /t 2 /nobreak >nul",
+        ":espera",
+        f'tasklist /FI "PID eq {pid}" | find "{pid}" >nul',
+        "if not errorlevel 1 (",
+        "  timeout /t 1 /nobreak >nul",
+        "  goto espera",
+        ")",
         f'xcopy /E /Y /I "{pasta_nova}\\*" "{pasta_atual}\\"',
         "echo Atualizacao concluida!",
-        f'start "" "{exe_atual}" "{script_principal}"',
+        comando_relancar,
         'del "%~f0"',
     ]
     bat_path.write_text("\r\n".join(linhas) + "\r\n", encoding="utf-8")

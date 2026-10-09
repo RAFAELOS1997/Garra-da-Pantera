@@ -96,6 +96,58 @@ class AtualizadorTests(unittest.TestCase):
         finally:
             api.close()
 
+    def test_versao_remota_picks_source_zip_when_not_frozen(self):
+        source = b"fake source zip"
+        exe = b"fake frozen exe zip"
+        api = _FakeGithubAPI({
+            "garra-da-pantera-v9.9.9.zip": source,
+            "garra-da-pantera-v9.9.9.zip.sha256": f"{hashlib.sha256(source).hexdigest()}  x\n".encode(),
+            "garra-da-pantera-v9.9.9-exe.zip": exe,
+            "garra-da-pantera-v9.9.9-exe.zip.sha256": f"{hashlib.sha256(exe).hexdigest()}  x\n".encode(),
+        })
+        self.assertFalse(getattr(sys, "frozen", False))
+        try:
+            tag, zip_url, checksum_url = up._versao_remota(api_url=api.api_url)
+            self.assertTrue(zip_url.endswith("v9.9.9.zip"))
+            self.assertFalse(zip_url.endswith("-exe.zip"))
+        finally:
+            api.close()
+
+    def test_versao_remota_picks_exe_zip_when_frozen(self):
+        source = b"fake source zip"
+        exe = b"fake frozen exe zip"
+        api = _FakeGithubAPI({
+            "garra-da-pantera-v9.9.9.zip": source,
+            "garra-da-pantera-v9.9.9.zip.sha256": f"{hashlib.sha256(source).hexdigest()}  x\n".encode(),
+            "garra-da-pantera-v9.9.9-exe.zip": exe,
+            "garra-da-pantera-v9.9.9-exe.zip.sha256": f"{hashlib.sha256(exe).hexdigest()}  x\n".encode(),
+        })
+        try:
+            with mock.patch.object(up.sys, "frozen", True, create=True):
+                tag, zip_url, checksum_url = up._versao_remota(api_url=api.api_url)
+            self.assertTrue(zip_url.endswith("-exe.zip"))
+        finally:
+            api.close()
+
+    def test_versao_remota_raises_when_frozen_but_only_source_zip_published(self):
+        source = b"fake source zip"
+        api = _FakeGithubAPI({
+            "garra-da-pantera-v9.9.9.zip": source,
+            "garra-da-pantera-v9.9.9.zip.sha256": f"{hashlib.sha256(source).hexdigest()}  x\n".encode(),
+        })
+        try:
+            with mock.patch.object(up.sys, "frozen", True, create=True):
+                with self.assertRaises(RuntimeError):
+                    up._versao_remota(api_url=api.api_url)
+        finally:
+            api.close()
+
+    def test_pasta_app_uses_executable_directory_when_frozen(self):
+        with mock.patch.object(up.sys, "frozen", True, create=True), \
+             mock.patch.object(up.sys, "executable", "/caminho/fake/GarraDaPantera.exe"):
+            self.assertEqual(up._pasta_app(), Path("/caminho/fake").resolve())
+        self.assertEqual(up._pasta_app(), Path(up.__file__).parent.resolve())
+
     def test_versao_remota_raises_without_checksum_asset(self):
         api = _FakeGithubAPI({"garra-da-pantera-v9.9.9.zip": b"x"})
         try:
@@ -161,7 +213,24 @@ class AtualizadorTests(unittest.TestCase):
             self.assertIn("cmd.exe", popen.call_args[0][0])
             bat_text = (tmp_dir / "aplicar_update.bat").read_text(encoding="utf-8")
             self.assertIn("xcopy", bat_text)
+            self.assertIn("tasklist", bat_text)  # waits for the old process's PID, not a fixed timeout
+            self.assertIn("garra_da_pantera.py", bat_text)
             self.assertNotIn('"\n"', bat_text)  # no leftover unterminated-string artifacts
+
+    def test_aplicar_relaunches_the_exe_directly_when_frozen(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            zip_path = tmp_dir / "update.zip"
+            with zipfile.ZipFile(zip_path, "w") as zf:
+                zf.writestr("GarraDaPantera.exe", "fake\n")
+            with mock.patch.object(up.sys, "frozen", True, create=True), \
+                 mock.patch.object(up.sys, "executable", str(tmp_dir / "GarraDaPantera.exe")), \
+                 mock.patch.object(up.subprocess, "Popen"), \
+                 self.assertRaises(SystemExit):
+                up._aplicar(zip_path, "9.9.9", tmp_dir)
+            bat_text = (tmp_dir / "aplicar_update.bat").read_text(encoding="utf-8")
+            self.assertIn("GarraDaPantera.exe", bat_text)
+            self.assertNotIn("garra_da_pantera.py", bat_text)
 
 
 if __name__ == "__main__":
