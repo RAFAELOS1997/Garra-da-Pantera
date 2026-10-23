@@ -89,6 +89,7 @@ main{max-width:1400px;margin:0 auto;padding:12px 10px calc(90px + env(safe-area-
 <button class="btn btn-primary fab" id="add-btn">＋ Adicionar</button>
 <div id="modal"></div>
 <div id="lightbox"></div>
+<div id="ask"></div>
 <div class="toasts" id="toasts" aria-live="polite"></div>
 <div class="gate" id="gate" hidden>
   <section class="gate-card">
@@ -129,6 +130,10 @@ let state=loadState();
 const ui={filter:'all',q:'',lb:null};
 function persist(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));return true}catch(e){toast('Não foi possível salvar: armazenamento indisponível.');return false}}
 function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;$('toasts').append(t);setTimeout(()=>t.remove(),3500)}
+
+/* confirmação na própria página (confirm() é bloqueado em alguns visualizadores) */
+function ask(msg,ok='Confirmar'){return new Promise(res=>{const el=$('ask');el.innerHTML=`<div class="layer" style="z-index:60"><section class="sheet" role="alertdialog" aria-modal="true"><p style="margin:0 0 14px">${esc(msg)}</p><div class="row"><button class="btn" id="ask-no">Cancelar</button><button class="btn btn-danger" id="ask-yes">${esc(ok)}</button></div></section></div>`;
+  const done=v=>{el.innerHTML='';res(v)};$('ask-no').onclick=()=>done(false);$('ask-yes').onclick=()=>done(true);$('ask-yes').focus()})}
 
 /* ---------- imagens (IndexedDB) ---------- */
 let dbP=null;
@@ -242,7 +247,7 @@ async function save(p){
   state.profiles=p?state.profiles.map(x=>x.id===p.id?rec:x):[rec,...state.profiles];
   if(persist()){closeModal();render();toast(p?'Perfil atualizado.':'Perfil adicionado.')}
 }
-async function removeProfile(id){const p=state.profiles.find(x=>x.id===id);if(!p||!confirm(`Excluir "${nameOf(p)}" e suas fotos deste aparelho?`))return;
+async function removeProfile(id){const p=state.profiles.find(x=>x.id===id);if(!p||!await ask(`Excluir "${nameOf(p)}" e suas fotos deste aparelho?`,'Excluir'))return;
   for(const i of p.images){await delImg(i).catch(()=>{});dropURL(i)}state.profiles=state.profiles.filter(x=>x.id!==id);persist();closeModal();if(ui.lb?.id===id)closeLB();render();toast('Perfil excluído.')}
 
 /* ---------- menu: backup / import / limpar / sobre ---------- */
@@ -260,7 +265,7 @@ function openMenu(){
   <div class="note"><strong>Integrações futuras.</strong> Busca e importação automáticas só serão adicionadas por APIs oficiais que autorizem acesso e exibição de imagens. Hoje não existe nenhuma integração ativa.</div>`);
   $('m-exp').onclick=()=>exportJson(false);$('m-exp-img').onclick=()=>exportJson(true);
   $('m-imp').onchange=e=>importJson(e.target.files?.[0]);
-  $('m-clear').onclick=async()=>{if(!confirm('Apagar DEFINITIVAMENTE todos os perfis e fotos deste navegador?'))return;
+  $('m-clear').onclick=async()=>{if(!await ask('Apagar definitivamente todos os perfis e fotos deste navegador?','Apagar tudo'))return;
     await clearImgs().catch(()=>{});urlCache.forEach(u=>URL.revokeObjectURL(u));urlCache.clear();state={profiles:[],version:2};persist();closeModal();render();toast('Dados apagados.')};
 }
 const blobToData=b=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(r.error);r.readAsDataURL(b)});
