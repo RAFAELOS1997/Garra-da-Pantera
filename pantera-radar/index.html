@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f0e12">
+<meta name="robots" content="noindex,nofollow">
+<meta name="description" content="Galeria privada de perfis favoritados, com imagens fornecidas pelo próprio usuário.">
+<title>Pantera Radar</title>
+<style>
+:root{color-scheme:dark;--bg:#0f0e12;--surface:#1a181d;--surface2:#232026;--line:#322b31;--text:#f8f3f0;--muted:#a79b9e;--subtle:#776e73;--red:#d3444c;--red2:#fa5861;--green:#92c6a8;--r:16px;--font:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;line-height:1.45;-webkit-tap-highlight-color:transparent}
+button,input,textarea{font:inherit;color:inherit}button{cursor:pointer}a{color:inherit}[hidden]{display:none!important}
+:focus-visible{outline:2px solid var(--red2);outline-offset:2px}
+.top{position:sticky;top:0;z-index:20;background:#0f0e12ee;backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding:max(10px,env(safe-area-inset-top)) 12px 10px}
+.top-row{display:flex;align-items:center;gap:10px;max-width:1400px;margin:0 auto}
+.brand{display:flex;align-items:center;gap:8px;font-weight:800;letter-spacing:.04em;font-size:15px;margin-right:auto;white-space:nowrap}.brand span{color:var(--red2)}
+.brand svg{width:28px;height:28px;color:var(--red2)}
+.icon-btn{background:var(--surface2);border:1px solid var(--line);border-radius:12px;min-width:42px;height:42px;display:grid;place-items:center;font-size:18px;padding:0 10px}
+.btn{background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:10px 16px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;min-height:42px}
+.btn-primary{background:var(--red);border-color:var(--red);color:#fff}.btn-danger{border-color:#6a3138;color:#ff9e9e}.btn-block{width:100%}
+.bar2{display:flex;gap:8px;max-width:1400px;margin:10px auto 0;align-items:center}
+.search{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;outline:none}
+.seg{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:3px}
+.seg button{background:none;border:0;border-radius:9px;padding:7px 11px;font-weight:700;font-size:13px;color:var(--muted);white-space:nowrap}.seg button[aria-pressed=true]{background:var(--red);color:#fff}
+main{max-width:1400px;margin:0 auto;padding:12px 10px calc(90px + env(safe-area-inset-bottom))}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media(min-width:700px){.grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}main{padding:18px 18px 90px}}
+@media(min-width:1050px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(min-width:1400px){.grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
+.card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column}
+.thumb{position:relative;aspect-ratio:3/4;background:#141216;border:0;padding:0;width:100%;display:block;overflow:hidden}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s}.thumb:hover img{transform:scale(1.03)}
+.count{position:absolute;left:8px;bottom:8px;background:#000a;border-radius:8px;padding:2px 7px;font-size:11px;font-weight:700}
+.nophoto{aspect-ratio:3/4;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:14px;text-align:center;background:radial-gradient(ellipse at 70% 0,#4a2230,transparent 70%),#18151a}
+.nophoto .ini{width:64px;height:64px;border-radius:20px;background:#3a2029;border:1px solid #6b3a47;display:grid;place-items:center;font-size:24px;font-weight:800;color:#ffd4d7}
+.nophoto small{color:var(--muted);font-size:12px}
+.fav{position:absolute;top:8px;right:8px;z-index:2;width:40px;height:40px;border-radius:50%;background:#000a;border:1px solid #ffffff30;color:#fff;font-size:20px;display:grid;place-items:center}.fav.on{color:#ff5d6a}
+.info{padding:9px 11px 11px;display:flex;flex-direction:column;gap:3px;min-width:0}
+.name{font-weight:800;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cap{color:#cdbfc3;font-size:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.open{margin-top:6px;font-size:13px;min-height:38px;padding:8px 10px}
+.empty{text-align:center;padding:60px 18px;color:var(--muted);max-width:460px;margin:0 auto}.empty h2{color:var(--text);margin:0 0 8px;font-size:20px}
+.fab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:25;height:56px;border-radius:28px;padding:0 22px;font-size:16px;box-shadow:0 10px 30px #0009}
+.layer{position:fixed;inset:0;z-index:40;background:#08070ae6;backdrop-filter:blur(6px);display:flex;align-items:flex-end;justify-content:center}
+@media(min-width:700px){.layer{align-items:center;padding:20px}}
+.sheet{width:100%;max-width:560px;max-height:94vh;overflow:auto;background:#1c1a1f;border:1px solid #4a3c44;border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
+@media(min-width:700px){.sheet{border-radius:20px}}
+.sheet h2{margin:0 0 4px;font-size:20px}.sheet p.sub{margin:0 0 14px;color:var(--muted);font-size:13px}
+.sheet-top{display:flex;justify-content:space-between;align-items:start;gap:10px}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}.field label{font-size:12px;font-weight:700;color:#cbbec1}
+.field input,.field textarea{background:#131116;border:1px solid #3a3238;border-radius:10px;padding:11px 12px;outline:none;width:100%}.field textarea{min-height:70px;resize:vertical}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#d6c9cc;background:#241e25;border:1px solid #43343c;border-radius:10px;padding:11px;margin-bottom:10px;cursor:pointer}.check input{width:18px;height:18px;accent-color:var(--red);flex:none;margin-top:1px}
+.pics{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:4px 0 10px}.pic{position:relative;aspect-ratio:3/4;border-radius:8px;overflow:hidden;background:#131116}.pic img{width:100%;height:100%;object-fit:cover}.pic button{position:absolute;top:3px;right:3px;width:26px;height:26px;border-radius:50%;border:0;background:#000b;color:#fff;font-size:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1}
+.note{font-size:12px;color:var(--muted);background:#211d24;border:1px solid #3a3139;border-radius:10px;padding:10px 12px;margin:10px 0}
+.menu-list{display:grid;gap:8px}.menu-list .btn{justify-content:flex-start}
+.lb{position:fixed;inset:0;z-index:50;background:#000;display:flex;flex-direction:column;touch-action:pan-y}
+.lb-img{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.lb-img img{max-width:100%;max-height:100%;object-fit:contain;user-select:none;-webkit-user-drag:none}
+.lb-top,.lb-bottom{display:flex;align-items:center;gap:8px;padding:10px 12px;background:linear-gradient(#000c,#0000)}
+.lb-top{padding-top:max(10px,env(safe-area-inset-top))}.lb-bottom{background:linear-gradient(#0000,#000c);padding-bottom:max(12px,env(safe-area-inset-bottom));flex-wrap:wrap}
+.lb-title{margin-right:auto;min-width:0}.lb-title strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lb-title small{color:#bbb}
+.lb-nav{position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;border-radius:50%;background:#0008;border:1px solid #fff3;color:#fff;font-size:22px}.lb-prev{left:10px}.lb-next{right:10px}
+.lb .icon-btn{background:#ffffff14;border-color:#ffffff25}
+.toasts{position:fixed;left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:70;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
+.toast{background:#30232b;border:1px solid #5d4045;border-radius:10px;padding:10px 14px;font-size:13px;max-width:420px;box-shadow:0 8px 28px #0008}
+.gate{position:fixed;inset:0;z-index:80;background:#0b0a0d;display:flex;align-items:center;justify-content:center;padding:18px}
+.gate-card{max-width:420px;width:100%;background:linear-gradient(145deg,#2a1c23,#19171c);border:1px solid #683640;border-radius:22px;padding:26px 20px;text-align:center}
+.gate-card h1{font-size:24px;margin:8px 0 10px}.gate-card p{color:#c1aeb6;font-size:13px}.gate-card .check{text-align:left}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-row">
+    <div class="brand"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M9 12 6 3l13 8 5-3 5 3L42 3l-3 9c5 5 5 15-1 22L24 44 10 34C4 27 4 17 9 12Z" fill="currentColor"/><path d="m11 24 11 2-9 5m24-7-11 2 9 5" stroke="#160c0f" stroke-width="3" stroke-linecap="round"/></svg>PANTERA<span>RADAR</span></div>
+    <button class="icon-btn" id="menu-btn" aria-label="Menu e backup">☰</button>
+  </div>
+  <div class="bar2">
+    <input id="search" class="search" type="search" placeholder="Buscar nome, cidade, site…" aria-label="Buscar">
+    <div class="seg" role="group" aria-label="Filtro">
+      <button data-filter="all" aria-pressed="true">Todos</button>
+      <button data-filter="fav" aria-pressed="false">♥ Favoritos</button>
+    </div>
+  </div>
+</header>
+<main><div id="grid" class="grid"></div><div id="empty"></div></main>
+<button class="btn btn-primary fab" id="add-btn">＋ Adicionar</button>
+<div id="modal"></div>
+<div id="lightbox"></div>
+<div id="ask"></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<div class="gate" id="gate" hidden>
+  <section class="gate-card">
+    <div style="font-size:12px;letter-spacing:.18em;color:var(--red2);font-weight:800">ACESSO RESTRITO · 18+</div>
+    <h1>Galeria privada para adultos</h1>
+    <p>Organiza links de perfis que você escolhe salvar. Os dados ficam só neste navegador. Não há busca automática, raspagem nem envio de imagens a servidores.</p>
+    <label class="check"><input type="checkbox" id="gate-check"> Tenho 18 anos ou mais e só vou salvar imagens que tenho autorização para guardar.</label>
+    <button class="btn btn-primary btn-block" id="gate-enter" disabled>Entrar</button>
+  </section>
+</div>
+<script>
+/* Pantera Radar — galeria local. Sem raspagem, sem chamadas externas, sem upload.
+   Metadados: localStorage. Imagens: IndexedDB (Blobs redimensionados), somente neste navegador. */
+'use strict';
+const STORAGE_KEY='pantera_radar_v1', AGE_KEY='pantera_radar_adult_confirm_v1';
+const DB_NAME='pantera_radar_images', MAX_PICS=8, MAX_SIDE=1600;
+const $=id=>document.getElementById(id);
+const txt=x=>String(x??'');
+const esc=s=>txt(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm=s=>txt(s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+const safeHref=s=>{try{const u=new URL(txt(s).trim());return (u.protocol==='https:'||u.protocol==='http:')&&u.hostname.includes('.')?u.href:''}catch(e){return ''}};
+const hostOf=s=>{try{return new URL(s).hostname.replace(/^www\./,'')}catch(e){return ''}};
+const uid=()=>crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2);
+const initials=n=>(norm(n).replace(/[^a-z0-9]/g,'').slice(0,2)||'?').toUpperCase();
+const nameOf=p=>p.name?.trim()||hostOf(p.url)||'Perfil';
+
+/* ---------- estado ---------- */
+function cleanProfile(p){
+  const url=safeHref(p?.url); if(!url) return null;
+  const age=p.age?Number(p.age):''; if(age&&(!Number.isInteger(age)||age<18||age>120)) return null;
+  return {...p,id:txt(p.id)||uid(),url,name:txt(p.name).slice(0,100),caption:txt(p.caption??p.description).slice(0,500),city:txt(p.city).slice(0,100),
+    age,favorite:Boolean(p.favorite),images:Array.isArray(p.images)?p.images.filter(x=>typeof x==='string').slice(0,MAX_PICS):[],
+    imageConsent:Boolean(p.imageConsent),createdAt:p.createdAt||new Date().toISOString(),updatedAt:p.updatedAt||new Date().toISOString()};
+}
+function loadState(){try{const raw=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');if(!raw||!Array.isArray(raw.profiles))return {profiles:[],version:2};
+  return {...raw,profiles:raw.profiles.map(cleanProfile).filter(Boolean).slice(0,3000),version:2}}catch(e){return {profiles:[],version:2}}}
+let state=loadState();
+const ui={filter:'all',q:'',lb:null};
+function persist(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));return true}catch(e){toast('Não foi possível salvar: armazenamento indisponível.');return false}}
+function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;$('toasts').append(t);setTimeout(()=>t.remove(),3500)}
+
+/* confirmação na própria página (confirm() é bloqueado em alguns visualizadores) */
+function ask(msg,ok='Confirmar'){return new Promise(res=>{const el=$('ask');el.innerHTML=`<div class="layer" style="z-index:60"><section class="sheet" role="alertdialog" aria-modal="true"><p style="margin:0 0 14px">${esc(msg)}</p><div class="row"><button class="btn" id="ask-no">Cancelar</button><button class="btn btn-danger" id="ask-yes">${esc(ok)}</button></div></section></div>`;
+  const done=v=>{el.innerHTML='';res(v)};$('ask-no').onclick=()=>done(false);$('ask-yes').onclick=()=>done(true);$('ask-yes').focus()})}
+
+/* ---------- imagens (IndexedDB) ---------- */
+let dbP=null;
+function db(){return dbP??=new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>r.result.createObjectStore('img');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+async function idb(mode,fn){const d=await db();return new Promise((res,rej)=>{const tx=d.transaction('img',mode),st=tx.objectStore('img'),r=fn(st);tx.oncomplete=()=>res(r?.result);tx.onerror=()=>rej(tx.error)})}
+const putImg=(id,blob)=>idb('readwrite',s=>s.put(blob,id));
+const getImg=id=>idb('readonly',s=>s.get(id));
+const delImg=id=>idb('readwrite',s=>s.delete(id));
+const clearImgs=()=>idb('readwrite',s=>s.clear());
+const urlCache=new Map();
+async function imgURL(id){if(urlCache.has(id))return urlCache.get(id);const b=await getImg(id).catch(()=>null);if(!b)return '';const u=URL.createObjectURL(b);urlCache.set(id,u);return u}
+function dropURL(id){const u=urlCache.get(id);if(u){URL.revokeObjectURL(u);urlCache.delete(id)}}
+async function resize(file){
+  if(!/^image\//.test(file.type))throw Error('tipo');
+  const bmp=await createImageBitmap(file).catch(()=>null); if(!bmp) throw Error('decodificar');
+  const k=Math.min(1,MAX_SIDE/Math.max(bmp.width,bmp.height)),c=document.createElement('canvas');
+  c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);bmp.close?.();
+  return new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(Error('codificar')),'image/jpeg',.86)); // re-encode also strips EXIF/GPS
+}
+
+/* ---------- galeria ---------- */
+function visible(){const q=norm(ui.q);return state.profiles.filter(p=>(ui.filter!=='fav'||p.favorite)&&(!q||norm([p.name,p.city,p.caption,p.url].join(' ')).includes(q)))
+  .sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt))}
+function card(p){
+  const media=p.images.length
+    ?`<button class="thumb" data-view="${esc(p.id)}" aria-label="Ampliar fotos de ${esc(nameOf(p))}"><img data-img="${esc(p.images[0])}" alt="" loading="lazy">${p.images.length>1?`<span class="count">1/${p.images.length}</span>`:''}</button>`
+    :`<div class="nophoto"><div class="ini">${esc(initials(nameOf(p)))}</div><small>Sem foto autorizada</small><button class="btn" style="font-size:12px;min-height:34px;padding:6px 10px" data-edit="${esc(p.id)}">＋ Foto</button></div>`;
+  return `<article class="card">${media}<button class="fav ${p.favorite?'on':''}" data-fav="${esc(p.id)}" aria-pressed="${p.favorite}" aria-label="${p.favorite?'Remover dos favoritos':'Favoritar'}">${p.favorite?'♥':'♡'}</button>
+  <div class="info"><div class="name">${esc(nameOf(p))}</div><div class="meta">${esc([p.city,p.age?p.age+' anos':'',hostOf(p.url)].filter(Boolean).join(' · '))}</div>${p.caption?`<div class="cap">${esc(p.caption)}</div>`:''}
+  <div class="row"><a class="btn open" href="${esc(p.url)}" target="_blank" rel="noopener noreferrer nofollow">↗ Perfil</a><button class="btn open" style="flex:0 0 42px" data-edit="${esc(p.id)}" aria-label="Editar">✎</button></div></div></article>`;
+}
+function render(){
+  const list=visible();
+  $('grid').innerHTML=list.map(card).join('');
+  $('grid').querySelectorAll('img[data-img]').forEach(async im=>{im.src=await imgURL(im.dataset.img)});
+  $('empty').innerHTML=list.length?'':state.profiles.length
+    ?`<div class="empty"><h2>Nada por aqui</h2><p>${ui.filter==='fav'?'Toque no ♡ de um card para favoritar.':'Nenhum resultado para a busca.'}</p></div>`
+    :`<div class="empty"><h2>Sua galeria está vazia</h2><p>Adicione o link de um perfil e, se tiver autorização, fotos do seu aparelho. Nada é baixado de sites automaticamente.</p><button class="btn btn-primary" data-add>＋ Adicionar primeiro perfil</button></div>`;
+  document.querySelectorAll('[data-filter]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.filter===ui.filter));
+}
+function toggleFav(id){const p=state.profiles.find(x=>x.id===id);if(!p)return;p.favorite=!p.favorite;persist();render();if(ui.lb)renderLB()}
+
+/* ---------- lightbox ---------- */
+function openLB(id,i=0){ui.lb={id,i};renderLB();document.body.style.overflow='hidden'}
+function closeLB(){ui.lb=null;$('lightbox').innerHTML='';document.body.style.overflow=''}
+function stepLB(d){const p=state.profiles.find(x=>x.id===ui.lb.id);if(!p)return;
+  // dentro do perfil primeiro; depois passa para o próximo perfil com foto da lista atual
+  let i=ui.lb.i+d;if(i>=0&&i<p.images.length){ui.lb.i=i;return renderLB()}
+  const withPics=visible().filter(x=>x.images.length),k=withPics.findIndex(x=>x.id===p.id);if(withPics.length<2)return;
+  const n=withPics[(k+d+withPics.length)%withPics.length];ui.lb={id:n.id,i:d>0?0:n.images.length-1};renderLB()}
+async function renderLB(){
+  const p=state.profiles.find(x=>x.id===ui.lb?.id);if(!p||!p.images.length)return closeLB();
+  const src=await imgURL(p.images[ui.lb.i]);
+  $('lightbox').innerHTML=`<div class="lb" role="dialog" aria-modal="true" aria-label="Foto ampliada">
+   <div class="lb-top"><div class="lb-title"><strong>${esc(nameOf(p))}</strong><small>${ui.lb.i+1}/${p.images.length}${p.city?' · '+esc(p.city):''}</small></div>
+   <button class="icon-btn" id="lb-full" aria-label="Tela cheia">⛶</button><button class="icon-btn" id="lb-close" aria-label="Fechar">✕</button></div>
+   <div class="lb-img" id="lb-stage"><img src="${esc(src)}" alt="Foto de ${esc(nameOf(p))}"><button class="lb-nav lb-prev" id="lb-prev" aria-label="Anterior">‹</button><button class="lb-nav lb-next" id="lb-next" aria-label="Próxima">›</button></div>
+   <div class="lb-bottom">${p.caption?`<div style="flex-basis:100%;font-size:13px;color:#ddd">${esc(p.caption)}</div>`:''}
+   <button class="btn" data-fav="${esc(p.id)}">${p.favorite?'♥ Favorito':'♡ Favoritar'}</button>
+   <a class="btn btn-primary" href="${esc(p.url)}" target="_blank" rel="noopener noreferrer nofollow">↗ Abrir perfil original</a></div></div>`;
+  $('lb-close').onclick=closeLB;$('lb-prev').onclick=()=>stepLB(-1);$('lb-next').onclick=()=>stepLB(1);
+  $('lb-full').onclick=()=>{const el=document.querySelector('.lb');document.fullscreenElement?document.exitFullscreen():el.requestFullscreen?.().catch(()=>{})};
+  let x0=null;const st=$('lb-stage');st.addEventListener('touchstart',e=>{x0=e.touches[0].clientX},{passive:true});
+  st.addEventListener('touchend',e=>{if(x0==null)return;const dx=e.changedTouches[0].clientX-x0;x0=null;if(Math.abs(dx)>45)stepLB(dx<0?1:-1)});
+}
+
+/* ---------- formulário ---------- */
+let draft=null; // {id, images:[{id,blob?|existing}], removed:[]}
+function closeModal(){$('modal').innerHTML='';draft?.images.forEach(x=>x.tmp&&URL.revokeObjectURL(x.tmp));draft=null}
+function sheet(html){$('modal').innerHTML=`<div class="layer" id="layer"><section class="sheet" role="dialog" aria-modal="true">${html}</section></div>`;$('layer').onclick=e=>{if(e.target.id==='layer')closeModal()}}
+function openForm(id){
+  const p=state.profiles.find(x=>x.id===id),edit=Boolean(p);
+  draft={id:p?.id||uid(),images:(p?.images||[]).map(i=>({id:i})),removed:[]};
+  sheet(`<div class="sheet-top"><div><h2>${edit?'Editar perfil':'Adicionar perfil'}</h2><p class="sub">Só o link é obrigatório. Tudo fica neste aparelho.</p></div><button class="icon-btn" data-close aria-label="Fechar">✕</button></div>
+  <form id="pf">
+   <div class="field"><label for="f-url">Link do perfil original *</label><input id="f-url" type="url" inputmode="url" required placeholder="https://…" value="${esc(p?.url||'')}"></div>
+   <div class="row"><div class="field"><label for="f-name">Nome / apelido</label><input id="f-name" maxlength="100" value="${esc(p?.name||'')}"></div>
+   <div class="field" style="flex:0 0 90px"><label for="f-age">Idade</label><input id="f-age" type="number" min="18" max="120" inputmode="numeric" value="${esc(p?.age||'')}"></div></div>
+   <div class="field"><label for="f-city">Cidade</label><input id="f-city" maxlength="100" value="${esc(p?.city||'')}"></div>
+   <div class="field"><label for="f-cap">Legenda</label><textarea id="f-cap" maxlength="500" placeholder="Opcional. Evite dados sensíveis ou íntimos.">${esc(p?.caption||'')}</textarea></div>
+   <div class="field"><label>Fotos (até ${MAX_PICS}, do seu aparelho)</label><div class="pics" id="pics"></div>
+    <label class="btn" style="cursor:pointer">📷 Escolher fotos<input id="f-files" type="file" accept="image/*" multiple hidden></label></div>
+   <label class="check"><input type="checkbox" id="f-consent" ${p?.imageConsent?'checked':''}> As fotos são minhas, foram enviadas pela própria pessoa ou vêm de fonte que permite guardá-las e exibi-las.</label>
+   <label class="check"><input type="checkbox" id="f-adult" ${edit?'checked':''}> O perfil é de pessoa adulta (18+).</label>
+   <div class="row" style="margin-top:6px">${edit?'<button type="button" class="btn btn-danger" id="f-del">Excluir</button>':''}<button type="submit" class="btn btn-primary">Salvar</button></div>
+  </form>`);
+  drawPics();
+  $('f-files').onchange=async e=>{const files=[...e.target.files];e.target.value='';
+    for(const f of files){if(draft.images.length>=MAX_PICS){toast(`Limite de ${MAX_PICS} fotos.`);break}
+      try{const blob=await resize(f);draft.images.push({id:uid(),blob,tmp:URL.createObjectURL(blob)})}catch(err){toast(`Não foi possível ler ${f.name}.`)}}
+    drawPics()};
+  $('pf').onsubmit=e=>{e.preventDefault();save(p)};
+  $('f-del')?.addEventListener('click',()=>removeProfile(p.id));
+  $('f-url').focus();
+}
+async function drawPics(){const box=$('pics');if(!box)return;
+  box.innerHTML=draft.images.map((x,i)=>`<div class="pic"><img alt="" data-k="${i}"><button type="button" data-rm="${i}" aria-label="Remover foto">✕</button></div>`).join('');
+  box.querySelectorAll('img[data-k]').forEach(async im=>{const x=draft.images[im.dataset.k];im.src=x.tmp||await imgURL(x.id)});
+  box.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{const [x]=draft.images.splice(Number(b.dataset.rm),1);if(x.tmp)URL.revokeObjectURL(x.tmp);else draft.removed.push(x.id);drawPics()})}
+async function save(p){
+  const v=id=>$(id).value.trim(),url=safeHref(v('f-url'));
+  if(!url)return toast('Informe um link http(s) válido.');
+  if(!$('f-adult').checked)return toast('Confirme que o perfil é de pessoa adulta.');
+  const age=v('f-age');if(age&&(!Number.isInteger(Number(age))||Number(age)<18||Number(age)>120))return toast('Idade precisa ser 18 ou mais.');
+  if(draft.images.length&&!$('f-consent').checked)return toast('Confirme a autorização das fotos ou remova-as.');
+  if(state.profiles.some(x=>x.url===url&&x.id!==draft.id))return toast('Esse link já está na galeria.');
+  try{for(const x of draft.images)if(x.blob)await putImg(x.id,x.blob);for(const id of draft.removed){await delImg(id);dropURL(id)}}
+  catch(e){return toast('Sem espaço para salvar as fotos neste navegador.')}
+  const now=new Date().toISOString(),rec={...(p||{}),id:draft.id,url,name:v('f-name').slice(0,100),age:age?Number(age):'',city:v('f-city').slice(0,100),caption:v('f-cap').slice(0,500),
+    images:draft.images.map(x=>x.id),imageConsent:draft.images.length>0&&$('f-consent').checked,favorite:Boolean(p?.favorite),createdAt:p?.createdAt||now,updatedAt:now};
+  state.profiles=p?state.profiles.map(x=>x.id===p.id?rec:x):[rec,...state.profiles];
+  if(persist()){closeModal();render();toast(p?'Perfil atualizado.':'Perfil adicionado.')}
+}
+async function removeProfile(id){const p=state.profiles.find(x=>x.id===id);if(!p||!await ask(`Excluir "${nameOf(p)}" e suas fotos deste aparelho?`,'Excluir'))return;
+  for(const i of p.images){await delImg(i).catch(()=>{});dropURL(i)}state.profiles=state.profiles.filter(x=>x.id!==id);persist();closeModal();if(ui.lb?.id===id)closeLB();render();toast('Perfil excluído.')}
+
+/* ---------- menu: backup / import / limpar / sobre ---------- */
+function openMenu(){
+  const n=state.profiles.length,pics=state.profiles.reduce((a,p)=>a+p.images.length,0);
+  sheet(`<div class="sheet-top"><div><h2>Seus dados</h2><p class="sub">${n} perfis · ${pics} fotos · somente neste navegador</p></div><button class="icon-btn" data-close aria-label="Fechar">✕</button></div>
+  <div class="menu-list">
+   <button class="btn" id="m-exp">↓ Exportar backup (só links e textos)</button>
+   <button class="btn" id="m-exp-img">↓ Exportar backup com fotos</button>
+   <label class="btn" style="cursor:pointer">↑ Importar backup JSON<input type="file" id="m-imp" accept="application/json,.json" hidden></label>
+   <button class="btn btn-danger" id="m-clear">Apagar tudo deste aparelho</button>
+  </div>
+  <div class="note"><strong>Privacidade.</strong> Nada é enviado para servidores. As fotos são redimensionadas e regravadas no aparelho, o que remove metadados como localização. O backup com fotos é um arquivo pessoal: não publique em repositórios ou sites.</div>
+  <div class="note"><strong>Regras.</strong> Somente pessoas adultas. Guarde apenas fotos suas, enviadas pela própria pessoa ou de fontes que permitem isso. O app não copia imagens de sites, não faz raspagem, não contorna logins ou CAPTCHAs e não faz reconhecimento facial.</div>
+  <div class="note"><strong>Integrações futuras.</strong> Busca e importação automáticas só serão adicionadas por APIs oficiais que autorizem acesso e exibição de imagens. Hoje não existe nenhuma integração ativa.</div>`);
+  $('m-exp').onclick=()=>exportJson(false);$('m-exp-img').onclick=()=>exportJson(true);
+  $('m-imp').onchange=e=>importJson(e.target.files?.[0]);
+  $('m-clear').onclick=async()=>{if(!await ask('Apagar definitivamente todos os perfis e fotos deste navegador?','Apagar tudo'))return;
+    await clearImgs().catch(()=>{});urlCache.forEach(u=>URL.revokeObjectURL(u));urlCache.clear();state={profiles:[],version:2};persist();closeModal();render();toast('Dados apagados.')};
+}
+const blobToData=b=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(r.error);r.readAsDataURL(b)});
+async function exportJson(withImages){
+  const profiles=[];for(const p of state.profiles){const o={...p};if(withImages){o.imageData=[];for(const i of p.images){const b=await getImg(i).catch(()=>null);if(b)o.imageData.push(await blobToData(b))}}else{o.images=[]}profiles.push(o)}
+  const blob=new Blob([JSON.stringify({application:'Pantera Radar',version:2,exportedAt:new Date().toISOString(),profiles})],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`pantera-radar-${withImages?'com-fotos-':''}${new Date().toISOString().slice(0,10)}.json`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),3000);toast('Backup exportado.')}
+async function importJson(file){
+  if(!file||file.size>200*1024*1024)return toast('Escolha um JSON de até 200 MB.');
+  let obj;try{obj=JSON.parse(await file.text())}catch(e){return toast('Arquivo inválido.')}
+  if(!Array.isArray(obj?.profiles))return toast('Não é um backup do Pantera Radar.');
+  const known=new Set(state.profiles.map(p=>p.url));let added=0,skipped=0;
+  for(const raw of obj.profiles.slice(0,3000)){
+    const p=cleanProfile({...raw,id:uid(),images:[]});if(!p||known.has(p.url)){skipped++;continue}
+    for(const d of (Array.isArray(raw.imageData)?raw.imageData:[]).slice(0,MAX_PICS)){
+      if(typeof d!=='string'||!/^data:image\/(jpeg|png|webp);base64,/.test(d))continue;
+      try{const b=await (await fetch(d)).blob(),id=uid();await putImg(id,b);p.images.push(id)}catch(e){}}
+    p.imageConsent=p.images.length>0&&Boolean(raw.imageConsent);known.add(p.url);state.profiles.push(p);added++}
+  persist();closeModal();render();toast(`${added} perfil(is) importado(s), ${skipped} ignorado(s).`)}
+
+/* ---------- eventos ---------- */
+document.addEventListener('click',e=>{const t=e.target.closest('button,[data-close]');if(!t)return;
+  if(t.dataset.fav)return toggleFav(t.dataset.fav);
+  if(t.dataset.view)return openLB(t.dataset.view);
+  if(t.dataset.edit){if(ui.lb)closeLB();return openForm(t.dataset.edit)}
+  if(t.dataset.filter){ui.filter=t.dataset.filter;return render()}
+  if('add' in t.dataset)return openForm();
+  if('close' in t.dataset)return closeModal()});
+document.addEventListener('keydown',e=>{if(ui.lb){if(e.key==='Escape')closeLB();if(e.key==='ArrowRight')stepLB(1);if(e.key==='ArrowLeft')stepLB(-1);return}if(e.key==='Escape')closeModal()});
+$('add-btn').onclick=()=>openForm();$('menu-btn').onclick=openMenu;
+$('search').oninput=e=>{ui.q=e.target.value;render()};
+(function gate(){let ok=false;try{ok=localStorage.getItem(AGE_KEY)==='yes'}catch(e){}if(ok)return;$('gate').hidden=false;
+  $('gate-check').onchange=e=>$('gate-enter').disabled=!e.target.checked;
+  $('gate-enter').onclick=()=>{try{localStorage.setItem(AGE_KEY,'yes')}catch(e){}$('gate').hidden=true}})();
+render();
+</script>
+</body>
+</html>
